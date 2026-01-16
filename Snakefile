@@ -35,9 +35,12 @@ rule render_rmd:
     params:
         group_a=lambda wc: comparisons_by_name[wc.comparison]["group_a"],
         group_b=lambda wc: comparisons_by_name[wc.comparison]["group_b"],
+        design_formula=lambda wc: config.get(
+            "design_formula", "~ Reprogrammation + Age + sex + condition2"
+        ),
         outdir=lambda wc: str(Path("results")),
     shell:
         """
         mkdir -p {params.outdir}
-        Rscript -e "rmarkdown::render(\"{input.rmd}\", output_file=\"{output}\", params=list(group_a=\"{params.group_a}\", group_b=\"{params.group_b}\", comparison=\"{wildcards.comparison}\"))"
+        Rscript -e "rmarkdown::render(\"{input.rmd}\", output_file=\"{output}\", params=list(group_a=\"{params.group_a}\", group_b=\"{params.group_b}\", comparison=\"{wildcards.comparison}\", design_formula=\"{params.design_formula}\"))"
         """
