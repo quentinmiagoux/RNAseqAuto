@@ -1,0 +1,16 @@
+---
+title: "RNA-seq comparison report"
+output: html_document
+params:
+  comparison: ""
+  group_a: ""
+  group_b: ""
+---
+
+# Comparaison: `r params$comparison`
+
+Ce rapport compare **`r params$group_a`** et **`r params$group_b`**.
+
+## À compléter
+
+Ajoutez ici vos analyses (DESeq2, edgeR, etc.) pour générer les figures et tableaux.
