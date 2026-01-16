@@ -76,6 +76,27 @@ select_group <- function(group, condition) {
     TRUE ~ condition == group
   )
 }
+
+canonicalize_group <- function(group) {
+  normalized <- group %>%
+    str_trim() %>%
+    str_replace_all("[ _-]", "") %>%
+    str_to_lower()
+
+  case_when(
+    normalized == "alldiseases" ~ "AllDiseases",
+    normalized == "dystrophy" ~ "Dystrophy",
+    normalized == "glycogenosis" ~ "glycogenosis",
+    normalized == "dnm2" ~ "DNM2",
+    normalized == "dnmii" ~ "DNM2",
+    normalized == "dmd" ~ "DMD",
+    normalized == "wt" ~ "WT",
+    normalized == "dn" ~ "DN",
+    normalized == "lmna" ~ "LMNA",
+    normalized == "gsdii" ~ "GSDII",
+    TRUE ~ group
+  )
+}
 ```
 
 ```{r transform-data}
@@ -111,12 +132,16 @@ coldata <- data.frame(samples = colnames(expr3))
 coldata$condition <- sub("[0-9].*$", "", coldata$samples)
 coldata$condition3 <- str_split(coldata$samples, "_", simplify = TRUE)[, 1]
 
+group_a <- canonicalize_group(params$group_a)
+group_b <- canonicalize_group(params$group_b)
+
 coldata$condition2 <- case_when(
-  select_group(params$group_a, coldata$condition) ~ params$group_a,
-  select_group(params$group_b, coldata$condition) ~ params$group_b,
+  select_group(group_a, coldata$condition) ~ group_a,
+  select_group(group_b, coldata$condition) ~ group_b,
   TRUE ~ NA_character_
 )
 coldata <- coldata %>% filter(!is.na(condition2))
+coldata$condition2 <- factor(coldata$condition2, levels = c(group_a, group_b))
 expr3 <- expr3[, coldata$samples]
 
 info <- openxlsx::read.xlsx(params$coldata_xlsx)
@@ -125,13 +150,6 @@ coldata <- left_join(coldata, info, by = c("condition3" = "Dreams"))
 
 ```{r DESeq2}
 dir.create("log", showWarnings = FALSE, recursive = TRUE)
-sink("log/deseq2_debug.txt")
-cat("### DESIGN\n"); print(design(dds))
-cat("\n### condition2 class\n"); print(class(colData(dds)$condition2))
-cat("\n### condition2 table\n"); print(table(colData(dds)$condition2, useNA="ifany"))
-cat("\n### condition2 levels\n"); print(levels(factor(colData(dds)$condition2)))
-cat("\n### group_a / group_b\n"); print(params$group_a); print(params$group_b)
-sink()
 
 print(params$design_formula)
 
@@ -141,13 +159,21 @@ dds <- DESeqDataSetFromMatrix(
   design = as.formula(params$design_formula)
 )
 
+sink("log/deseq2_debug.txt")
+cat("### DESIGN\n"); print(design(dds))
+cat("\n### condition2 class\n"); print(class(colData(dds)$condition2))
+cat("\n### condition2 table\n"); print(table(colData(dds)$condition2, useNA="ifany"))
+cat("\n### condition2 levels\n"); print(levels(factor(colData(dds)$condition2)))
+cat("\n### group_a / group_b\n"); print(group_a); print(group_b)
+sink()
+
 if (params$merge_replicates) {
   dds <- collapseReplicates(dds, dds$condition3, dds$samples)
 }
 
 dds <- dds[rowSums(counts(dds)) > 10, ]
 dds <- DESeq(dds)
-res <- results(dds, contrast = c("condition2", params$group_a, params$group_b))
+res <- results(dds, contrast = c("condition2", group_a, group_b))
 rld <- vst(dds, blind = TRUE)
 
 finalDE_padj05 <- res %>%
