@@ -1,1 +1,2 @@
 comparisons_file: comparisons.tsv
+design_formula: "~ Reprogrammation + Age + sex + condition2"
