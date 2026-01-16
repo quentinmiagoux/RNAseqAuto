@@ -23,37 +23,33 @@ def load_comparisons(path):
 comparisons = load_comparisons(config["comparisons_file"])
 comparisons_by_name = {row["comparison"]: row for row in comparisons}
 
-
 rule all:
     input:
-        "results",
         expand("results/{comparison}.html", comparison=comparisons_by_name.keys())
 
 
 rule init_results:
     output:
-        directory("results")
+        touch("results/.initialized")
     shell:
         """
-        mkdir -p {output}
+        mkdir -p results
         """
 
 
 rule render_rmd:
     input:
         rmd=lambda wc: comparisons_by_name[wc.comparison]["rmd"],
-        results_dir="results",
+        init="results/.initialized",
     output:
-        "results/{comparison}.html",
+        "results/{comparison}.html"
     params:
         group_a=lambda wc: comparisons_by_name[wc.comparison]["group_a"],
         group_b=lambda wc: comparisons_by_name[wc.comparison]["group_b"],
         design_formula=lambda wc: config.get(
             "design_formula", "~ Reprogrammation + Age + sex + condition2"
         ),
-        outdir=lambda wc: str(Path("results")),
     shell:
-        """
-        mkdir -p {params.outdir}
-        Rscript -e "rmarkdown::render(\"{input.rmd}\", output_file=\"{output}\", params=list(group_a=\"{params.group_a}\", group_b=\"{params.group_b}\", comparison=\"{wildcards.comparison}\", design_formula=\"{params.design_formula}\"))"
+        r"""
+        Rscript -e "rmarkdown::render('{input.rmd}', output_file='{output}', params=list(group_a='{params.group_a}', group_b='{params.group_b}', comparison='{wildcards.comparison}', design_formula='{params.design_formula}'))"
         """
