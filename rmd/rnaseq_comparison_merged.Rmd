@@ -18,8 +18,10 @@ params:
   comparison: ""
   group_a: ""
   group_b: ""
+  expr_xlsx: ""
+  coldata_xlsx: ""
   merge_replicates: true
-  design_formula: "~ Reprogrammation + Age + sex + condition2"
+  design_formula: ""
 editor_options:
   chunk_output_type: console
 ---
@@ -77,7 +79,11 @@ select_group <- function(group, condition) {
 ```
 
 ```{r transform-data}
-expr <- read.xlsx("gene_expression.xlsx")
+cat("R getwd(): ", getwd(), "\n")
+cat("expr_xlsx: ", params$expr_xlsx, "\n")
+cat("exists: ", file.exists(params$expr_xlsx), "\n")
+stopifnot(file.exists(params$expr_xlsx))
+expr <- openxlsx::read.xlsx(params$expr_xlsx)
 expr2 <- expr %>%
   dplyr::select(gene_symbol, starts_with("read_count_"))
 expr2[, -1] <- expr2[, -1] %>% mutate_all(as.numeric) %>% mutate_all(round)
@@ -113,11 +119,15 @@ coldata$condition2 <- case_when(
 coldata <- coldata %>% filter(!is.na(condition2))
 expr3 <- expr3[, coldata$samples]
 
-info <- read.xlsx("RNAseq_proteomics_info.xlsx")
+info <- openxlsx::read.xlsx(params$coldata_xlsx)
 coldata <- left_join(coldata, info, by = c("condition3" = "Dreams"))
 ```
 
 ```{r DESeq2}
+
+print(params$design_formula)
+
+
 dds <- DESeqDataSetFromMatrix(
   countData = expr3,
   colData = coldata,
@@ -143,7 +153,7 @@ finalDE <- res %>%
   rownames_to_column(var = "symbol")
 ```
 
-```{r}
+```{r entrezid}
 gene.df <- bitr(
   finalDE_padj05$symbol,
   fromType = "SYMBOL",
@@ -189,7 +199,7 @@ data <- data %>% t() %>% as.data.frame() %>% rownames_to_column(var = "ID")
 
 ## PCA
 
-```{r}
+```{r PCA2}
 pcaData <- plotPCA(rld, intgroup = c("samples", "condition2", "condition"),
                    returnData = TRUE, ntop = 300)
 percentVar <- round(100 * attr(pcaData, "percentVar"))
@@ -232,15 +242,78 @@ pheatmap(
 )
 ```
 
+# DEA {.tabset .tabset-fade}
+## DEGs
+
+```{r}
+finalDE_VP <- finalDE
+keyvals <- ifelse(
+    finalDE_VP$log2FoldChange < -log2(2) & finalDE_VP$padj < .05 & finalDE_VP$baseMean > 20, 'royalblue',
+      ifelse(finalDE_VP$log2FoldChange > log2(2) & finalDE_VP$padj <  .05 & finalDE_VP$baseMean > 20 , 'red',
+        'grey'))
+  keyvals[is.na(keyvals)] <- 'grey'
+  names(keyvals)[keyvals == 'red'] <- 'Up-regulated'
+  names(keyvals)[keyvals == 'grey'] <- 'Non-significant'
+  names(keyvals)[keyvals == 'royalblue'] <- 'Down-regulated'
+  
+EnhancedVolcano(finalDE_VP, 
+                lab = finalDE_VP$symbol, 
+                title = "",
+                subtitle = "",
+                caption = paste0("Total = ", nrow(finalDE_VP), " variables, ",  "DEGs = ", nrow(finalDE_padj05), " corrected p-value (FDR) < 0.05 & ",  bquote("|FC| > 2 ")),
+                x="log2FoldChange", 
+                y= "padj",
+                pCutoff = 5e-2,
+                FCcutoff = log2(2),
+                pointSize = 3.0,
+                colCustom = keyvals,
+                labSize = 5.0,
+                labCol = 'black',
+                labFace = 'bold',
+                legendLabSize = 14,
+                legendIconSize = 4.0,
+                drawConnectors = TRUE,
+                widthConnectors = .5,
+                colConnectors = 'black')  +
+  scale_x_continuous(
+    breaks = seq(-7, 7,by=1), limits=c(-7,7)) +
+  scale_y_continuous(breaks= c(10,20,30), limits=c(0,30))
+
+
+data <- counts(dds, normalized=T)
+
+data <- data %>% data.frame %>% rownames_to_column(var = "symbol")
+
+finalDE_padj05 <- left_join(finalDE_padj05,data, by=c("symbol"))
+
+finalDE_padj05 %>%  
+  datatable_fun
+
+
+finalDE_padj05 %>% 
+  download_this(
+    output_name = "DEGs_FC2_005_BM20",
+    output_extension = ".xlsx",
+    button_label = "Download table as xlsx",
+    button_type = "success",
+    has_icon = TRUE,
+    icon = "fa fa-save"
+  )
+
+
+
+```
+
 ## All genes
 
 ```{r}
-finalDE <- left_join(finalDE, data, by = c("symbol"))
 
-finalDE %>%
+finalDE <- left_join(finalDE,data, by=c("symbol"))
+
+finalDE %>%  
   datatable_fun
 
-finalDE_padj05 %>%
+finalDE_padj05 %>% 
   download_this(
     output_name = "All_genes",
     output_extension = ".xlsx",
@@ -251,59 +324,10 @@ finalDE_padj05 %>%
   )
 ```
 
+
 # Analyse d'enrichissement Gene Ontology
 
 ## Over-representation analysis {.tabset .tabset-fade}
-
-### msigdb
-
-```{r}
-library(msigdbr)
-
-C3_t2g <- msigdbr(species = "Homo sapiens", category = "H") %>%
-  dplyr::select(gs_name, gene_symbol)
-
-em2 <- GSEA(finalDE_symbol, TERM2GENE = C3_t2g, pvalueCutoff = .5, pAdjustMethod = "fdr")
-
-to_plot <- em2@result %>% filter(p.adjust <= 0.05) %>% dplyr::select(ID, NES, pvalue, p.adjust)
-
-to_plot <- to_plot %>% dplyr::arrange(NES)
-
-to_plot %>%
-  ggplot(aes(fill = p.adjust, y = NES, x = ID)) +
-  geom_bar(position = "stack", stat = "identity", color = "black") +
-  theme_bw(12) +
-  theme(
-    axis.text.x = element_text(face = "bold", color = "black", angle = 45, hjust = 1),
-    plot.margin = margin(.5, .5, .5, 6, "cm"),
-    legend.text = element_text(face = "bold"),
-    legend.title = element_text(face = "bold")
-  ) +
-  xlab("") +
-  ylab("NES") +
-  scale_fill_gradient2(low = "red", mid = "blue", high = "red")
-
-ggplot() +
-  geom_bar(
-    data = to_plot,
-    aes(x = NES, y = reorder(ID, -p.adjust), fill = p.adjust),
-    stat = "identity",
-    width = 0.7,
-    position = position_dodge(0.8)
-  ) +
-  scale_fill_gradient(low = "red", high = "#FFE6E6") +
-  theme_classic() +
-  theme(
-    axis.text.x = element_text(angle = 0, hjust = 1, size = 10, color = "black", face = "bold"),
-    axis.text.y = element_text(size = 10, color = "black", face = "bold")
-  ) +
-  theme(
-    legend.position = "bottom",
-    legend.text = element_text(size = 12),
-    legend.title = element_text(size = 14, face = "bold")
-  ) +
-  ylab("")
-```
 
 ### Cellular Component {.tabset .tabset-fade}
 
@@ -318,10 +342,8 @@ gocc_up <- enrichGO(
   OrgDb = org.Hs.eg.db,
   ont = "CC",
   pAdjustMethod = "fdr",
-  qvalueCutoff = 0.05,
-  readable = TRUE,
-  minGSSize = 10
-)
+  pvalueCutoff = 0.1,
+  readable = TRUE)
 
 if (!is.null(gocc_up)) {
   test <- any(gocc_up@result$p.adjust < 0.1)
@@ -379,9 +401,8 @@ gocc_down <- enrichGO(
   OrgDb = org.Hs.eg.db,
   ont = "CC",
   pAdjustMethod = "fdr",
-  qvalueCutoff = 0.05,
-  readable = TRUE,
-  minGSSize = 10
+  pvalueCutoff = 0.1,
+  readable = TRUE
 )
 
 if (!is.null(gocc_down)) {
@@ -441,11 +462,9 @@ gomf_up <- enrichGO(
   universe = univ.gene.df$ENTREZID,
   OrgDb = org.Hs.eg.db,
   ont = "MF",
-  pAdjustMethod = "BH",
-  pvalueCutoff = 0.05,
-  readable = TRUE,
-  minGSSize = 10
-)
+  pAdjustMethod = "fdr",
+  pvalueCutoff = 0.1,
+  readable = TRUE)
 
 if (!is.null(gomf_up)) {
   test <- any(gomf_up@result$p.adjust < 0.1)
@@ -503,10 +522,9 @@ gomf_down <- enrichGO(
   universe = univ.gene.df$ENTREZID,
   OrgDb = org.Hs.eg.db,
   ont = "MF",
-  pAdjustMethod = "BH",
-  qvalueCutoff = 0.05,
-  readable = TRUE,
-  minGSSize = 10
+  pAdjustMethod = "fdr",
+  pvalueCutoff = 0.1,
+  readable = TRUE
 )
 
 if (!is.null(gomf_down)) {
@@ -568,9 +586,8 @@ gobp_up <- enrichGO(
   OrgDb = org.Hs.eg.db,
   ont = "BP",
   pAdjustMethod = "fdr",
-  qvalueCutoff = 0.05,
-  readable = TRUE,
-  minGSSize = 10
+  pvalueCutoff = 0.1,
+  readable = TRUE
 )
 
 if (!is.null(gobp_up)) {
@@ -630,9 +647,8 @@ gobp_down <- enrichGO(
   OrgDb = org.Hs.eg.db,
   ont = "BP",
   pAdjustMethod = "fdr",
-  qvalueCutoff = 0.05,
-  readable = TRUE,
-  minGSSize = 10
+  pvalueCutoff = 0.1,
+  readable = TRUE
 )
 
 if (!is.null(gobp_down)) {
@@ -698,13 +714,12 @@ egocc <- gseGO(
   ont = "CC",
   keyType = "ENTREZID",
   pAdjustMethod = "fdr",
-  maxGSSize = 500,
-  pvalueCutoff = 0.05,
+  pvalueCutoff = 0.1,
   verbose = FALSE
 )
 
 if (!is.null(egocc)) {
-  test <- any(egocc@result$p.adjust < 0.05)
+  test <- any(egocc@result$p.adjust < 0.1)
 
   if (test) {
     egocc <- setReadable(egocc, OrgDb = org.Hs.eg.db, keyType = "ENTREZID")
@@ -752,12 +767,12 @@ egomf <- gseGO(
   OrgDb = org.Hs.eg.db,
   ont = "MF",
   pAdjustMethod = "fdr",
-  pvalueCutoff = 0.05,
+  pvalueCutoff = 0.1,
   verbose = FALSE
 )
 
 if (!is.null(egomf)) {
-  test <- any(egomf@result$p.adjust < 0.05)
+  test <- any(egomf@result$p.adjust < 0.1)
 
   if (test) {
     egomf <- setReadable(egomf, OrgDb = org.Hs.eg.db, keyType = "ENTREZID")
@@ -805,12 +820,12 @@ egobp <- gseGO(
   OrgDb = org.Hs.eg.db,
   ont = "BP",
   pAdjustMethod = "fdr",
-  pvalueCutoff = 0.05,
+  pvalueCutoff = 0.1,
   verbose = FALSE
 )
 
 if (!is.null(egobp)) {
-  test <- any(egobp@result$p.adjust < 0.05)
+  test <- any(egobp@result$p.adjust < 0.1)
 
   if (test) {
     egobp <- setReadable(egobp, OrgDb = org.Hs.eg.db, keyType = "ENTREZID")
@@ -865,11 +880,9 @@ kk_up <- enrichKEGG(
   organism = "hsa",
   keyType = "kegg",
   universe = univ.gene.df$ENTREZID,
-  pvalueCutoff = 0.05,
-  pAdjustMethod = "fdr",
-  maxGSSize = 500,
-  minGSSize = 10
-)
+  pvalueCutoff = 0.1,
+  pAdjustMethod = "fdr"
+  )
 
 if (!is.null(kk_up)) {
   test <- any(kk_up@result$p.adjust < 0.1)
@@ -918,10 +931,8 @@ kk_down <- enrichKEGG(
   organism = "hsa",
   keyType = "kegg",
   universe = univ.gene.df$ENTREZID,
-  pvalueCutoff = 0.05,
-  pAdjustMethod = "fdr",
-  maxGSSize = 500,
-  minGSSize = 10
+  pvalueCutoff = 0.1,
+  pAdjustMethod = "fdr"
 )
 
 if (!is.null(kk_down)) {
@@ -969,14 +980,12 @@ kkg <- gseKEGG(
   gene = gsea_gene,
   organism = "hsa",
   keyType = "kegg",
-  pvalueCutoff = 0.05,
-  pAdjustMethod = "fdr",
-  maxGSSize = 500,
-  minGSSize = 10
+  pvalueCutoff = 0.1,
+  pAdjustMethod = "fdr"
 )
 
 if (!is.null(kkg)) {
-  test <- any(kkg@result$p.adjust < 0.05)
+  test <- any(kkg@result$p.adjust < 0.1)
 
   if (test) {
     kkg <- setReadable(kkg, OrgDb = org.Hs.eg.db, keyType = "ENTREZID")
@@ -1028,10 +1037,8 @@ wpres_up <- enrichWP(
   gene.df_up,
   organism = "Homo sapiens",
   universe = univ.gene.df$ENTREZID,
-  pvalueCutoff = 0.05,
-  pAdjustMethod = "fdr",
-  maxGSSize = 500,
-  minGSSize = 10
+  pvalueCutoff = 0.1,
+  pAdjustMethod = "fdr"
 )
 
 if (!is.null(wpres_up)) {
@@ -1079,10 +1086,8 @@ wpres_down <- enrichWP(
   gene.df_down,
   organism = "Homo sapiens",
   universe = univ.gene.df$ENTREZID,
-  pvalueCutoff = 0.05,
-  pAdjustMethod = "fdr",
-  maxGSSize = 500,
-  minGSSize = 10
+  pvalueCutoff = 0.1,
+  pAdjustMethod = "fdr"
 )
 
 if (!is.null(wpres_down)) {
@@ -1129,13 +1134,12 @@ if (!is.null(wpres_down)) {
 wpresg <- gseWP(
   gsea_gene,
   organism = "Homo sapiens",
-  pvalueCutoff = 0.05,
-  pAdjustMethod = "fdr",
-  minGSSize = 10
+  pvalueCutoff = 0.1,
+  pAdjustMethod = "fdr"
 )
 
 if (!is.null(wpresg)) {
-  test <- any(wpresg@result$p.adjust < 0.05)
+  test <- any(wpresg@result$p.adjust < 0.1)
 
   if (test) {
     wpresg <- setReadable(wpresg, OrgDb = org.Hs.eg.db, keyType = "ENTREZID")
@@ -1187,8 +1191,7 @@ reactome_up <- enrichPathway(
   gene = gene.df_up,
   universe = finalDE_entrez$ENTREZID,
   pAdjustMethod = "fdr",
-  maxGSSize = 500,
-  pvalueCutoff = 0.05,
+  pvalueCutoff = 0.1,
   readable = TRUE
 )
 
@@ -1236,9 +1239,7 @@ reactome_down <- enrichPathway(
   gene = gene.df_down,
   universe = finalDE_entrez$ENTREZID,
   pAdjustMethod = "fdr",
-  minGSSize = 10,
-  maxGSSize = 500,
-  pvalueCutoff = 0.05,
+  pvalueCutoff = 0.1,
   readable = TRUE
 )
 
@@ -1290,14 +1291,12 @@ gc()
 reactome_gsea <- gsePathway(
   gsea_gene,
   pAdjustMethod = "fdr",
-  maxGSSize = 200,
-  minGSSize = 10,
-  pvalueCutoff = 0.5,
+  pvalueCutoff = 0.1,
   organism = "human"
 )
 
 if (!is.null(reactome_gsea)) {
-  test <- any(reactome_gsea@result$p.adjust < 0.05)
+  test <- any(reactome_gsea@result$p.adjust < 0.1)
 
   if (test) {
     reactome_gsea <- setReadable(reactome_gsea, OrgDb = org.Hs.eg.db, keyType = "ENTREZID")

@@ -1,2 +1,4 @@
 comparisons_file: comparisons.tsv
-design_formula: "~ Reprogrammation + Age + sex + condition2"
+design_formula: "~ Reprogrammation + sex + condition2" #"~ Reprogrammation + Age + sex + condition2"
+gene_expression_xlsx: "data/gene_expression.xlsx"
+coldata_xlsx: "data/RNAseq_proteomics_info.xlsx"
