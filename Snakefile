@@ -23,16 +23,17 @@ def load_comparisons(path):
 comparisons = load_comparisons(config["comparisons_file"])
 comparisons_by_name = {row["comparison"]: row for row in comparisons}
 
+
 rule all:
     input:
-        expand("results/{comparison}.html", comparison=comparisons_by_name.keys())
+        expand("results/{comparison}.html", comparison=sorted(comparisons_by_name.keys()))
 
 
 rule init_results:
     output:
         touch("results/.initialized")
     shell:
-        """
+        r"""
         mkdir -p results
         """
 
@@ -51,5 +52,19 @@ rule render_rmd:
         ),
     shell:
         r"""
-        Rscript -e "rmarkdown::render('{input.rmd}', output_file='{output}', params=list(group_a='{params.group_a}', group_b='{params.group_b}', comparison='{wildcards.comparison}', design_formula='{params.design_formula}'))"
+        # Ensure output directory exists (R will error if it doesn't)
+        mkdir -p results
+
+        # Render into results/ using output_dir (robust vs relative WD changes)
+        Rscript -e "rmarkdown::render(
+          '{input.rmd}',
+          output_file='{wildcards.comparison}.html',
+          output_dir='results',
+          params=list(
+            group_a='{params.group_a}',
+            group_b='{params.group_b}',
+            comparison='{wildcards.comparison}',
+            design_formula='{params.design_formula}'
+          )
+        )"
         """
