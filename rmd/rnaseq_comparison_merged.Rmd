@@ -1,0 +1,1333 @@
+---
+title: "DREAMS RNAseq"
+author: "Quentin Miagoux"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    df_print: paged
+    theme: united
+    highlight: tango
+    keep_md: yes
+    number_sections: yes
+    smart: no
+    toc: yes
+    toc_float: yes
+    css: "../my_css.css"
+    code_folding: hide
+params:
+  comparison: ""
+  group_a: ""
+  group_b: ""
+  merge_replicates: true
+  design_formula: "~ Reprogrammation + Age + sex + condition2"
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  message = FALSE,
+  warning = FALSE,
+  fig.height = 10,
+  fig.width = 8
+)
+```
+
+```{r packages}
+library("openxlsx")
+library("DT")
+library("clusterProfiler")
+library("ComplexHeatmap")
+library("ReactomePA")
+library("org.Hs.eg.db")
+library("DOSE")
+library("AnnotationHub")
+library("downloadthis")
+library("enrichplot")
+library("tidyverse")
+library("biomaRt")
+library("EnhancedVolcano")
+library("scales")
+library("DESeq2")
+set.seed(123)
+```
+
+```{r functions}
+datatable_fun <- function(x) {
+  x %>%
+    mutate_if(is.numeric, ~format(., scientific = TRUE, digits = 2)) %>%
+    datatable(
+      options = list(pageLength = 10, scrollX = "400px"),
+      filter = "top",
+      rownames = FALSE,
+      escape = FALSE
+    )
+}
+
+select_group <- function(group, condition) {
+  case_when(
+    group == "Dystrophy" ~ condition %in% c("DMD", "LMNA", "DNMII"),
+    group == "glycogenosis" ~ condition %in% c("DN", "GSDII"),
+    group == "AllDiseases" ~ condition %in% c("DMD", "DN", "LMNA", "DNMII", "GSDII"),
+    group == "DNM2" ~ condition == "DNMII",
+    TRUE ~ condition == group
+  )
+}
+```
+
+```{r transform-data}
+expr <- read.xlsx("gene_expression.xlsx")
+expr2 <- expr %>%
+  dplyr::select(gene_symbol, starts_with("read_count_"))
+expr2[, -1] <- expr2[, -1] %>% mutate_all(as.numeric) %>% mutate_all(round)
+expr3 <- expr2 %>% dplyr::select(gene_symbol, starts_with("read_count_"))
+
+rownames(expr3) <- expr2$gene_symbol
+expr3 <- expr3[, -1]
+
+colnames(expr3) <- colnames(expr3) %>%
+  str_remove("^read_count_") %>%
+  str_replace("^DNM2_", "DNMII_")
+
+expr3 <- expr3[, str_detect(colnames(expr3), "^(DMD|WT|DN|LMNA|GSDII|DNMII)")]
+expr3 <- expr3[, !str_detect(colnames(expr3), "DMD9|WT3")]
+
+ord <- order(as.integer(sub("^.*_", "", colnames(expr3))))
+expr3 <- expr3[, ord]
+
+colnames(expr3) <- colnames(expr3) %>%
+  sub("[0-9]+_", "_", .) %>%
+  str_remove("_")
+colnames(expr3) <- paste0(colnames(expr3), "_", rep(c(1, 2, 3)))
+
+coldata <- data.frame(samples = colnames(expr3))
+coldata$condition <- sub("[0-9].*$", "", coldata$samples)
+coldata$condition3 <- str_split(coldata$samples, "_", simplify = TRUE)[, 1]
+
+coldata$condition2 <- case_when(
+  select_group(params$group_a, coldata$condition) ~ params$group_a,
+  select_group(params$group_b, coldata$condition) ~ params$group_b,
+  TRUE ~ NA_character_
+)
+coldata <- coldata %>% filter(!is.na(condition2))
+expr3 <- expr3[, coldata$samples]
+
+info <- read.xlsx("RNAseq_proteomics_info.xlsx")
+coldata <- left_join(coldata, info, by = c("condition3" = "Dreams"))
+```
+
+```{r DESeq2}
+dds <- DESeqDataSetFromMatrix(
+  countData = expr3,
+  colData = coldata,
+  design = as.formula(params$design_formula)
+)
+
+if (params$merge_replicates) {
+  dds <- collapseReplicates(dds, dds$condition3, dds$samples)
+}
+
+dds <- dds[rowSums(counts(dds)) > 10, ]
+dds <- DESeq(dds)
+res <- results(dds, contrast = c("condition2", params$group_a, params$group_b))
+rld <- vst(dds, blind = TRUE)
+
+finalDE_padj05 <- res %>%
+  data.frame() %>%
+  dplyr::filter(abs(log2FoldChange) > log2(2), padj < 0.05, baseMean > 20) %>%
+  rownames_to_column(var = "symbol")
+finalDE <- res %>%
+  data.frame() %>%
+  dplyr::filter(baseMean > 20) %>%
+  rownames_to_column(var = "symbol")
+```
+
+```{r}
+gene.df <- bitr(
+  finalDE_padj05$symbol,
+  fromType = "SYMBOL",
+  toType = c("SYMBOL", "ENTREZID"),
+  OrgDb = org.Hs.eg.db,
+  drop = FALSE
+)
+
+univ.gene.df <- bitr(
+  finalDE$symbol,
+  fromType = "SYMBOL",
+  toType = c("SYMBOL", "ENTREZID"),
+  OrgDb = org.Hs.eg.db,
+  drop = FALSE
+)
+
+finalDE_symbol <- finalDE$log2FoldChange
+names(finalDE_symbol) <- finalDE$symbol
+finalDE_symbol <- finalDE_symbol[order(finalDE_symbol, decreasing = TRUE)]
+
+finalDE_entrez <- left_join(finalDE, univ.gene.df, by = c("symbol" = "SYMBOL"))
+finalDE_entrez <- finalDE_entrez[!(is.na(finalDE_entrez$ENTREZID)), ]
+finalDE_entrez <- finalDE_entrez[order(finalDE_entrez$log2FoldChange, decreasing = TRUE), ]
+
+gene.df_down <- finalDE_entrez %>%
+  dplyr::filter(log2FoldChange < -log2(2), padj < 0.05) %>%
+  pull(ENTREZID)
+gene.df_up <- finalDE_entrez %>%
+  dplyr::filter(log2FoldChange > log2(2), padj < 0.05) %>%
+  pull(ENTREZID)
+
+gsea_gene <- finalDE_entrez$log2FoldChange
+names(gsea_gene) <- finalDE_entrez$ENTREZID
+```
+
+# QC {.tabset .tabset-fade}
+
+```{r PCA}
+data <- counts(dds, normalized = TRUE)
+
+data <- data %>% t() %>% as.data.frame() %>% rownames_to_column(var = "ID")
+```
+
+## PCA
+
+```{r}
+pcaData <- plotPCA(rld, intgroup = c("samples", "condition2", "condition"),
+                   returnData = TRUE, ntop = 300)
+percentVar <- round(100 * attr(pcaData, "percentVar"))
+
+pcaData <- pcaData %>% mutate(samples = str_split(samples, "_", simplify = TRUE) %>% .[, 1])
+
+ggplot(pcaData, aes(PC1, PC2, color = samples)) +
+  geom_point(size = 5, alpha = 0.8) +
+  scale_shape_manual(values = 16:22) +
+  scale_color_viridis_d(option = "turbo") +
+  xlab(paste0("PC1: ", percentVar[1], "% variance")) +
+  ylab(paste0("PC2: ", percentVar[2], "% variance")) +
+  coord_fixed(ratio = 4 / 3) +
+  theme_bw()
+```
+
+## Heatmap
+
+```{r pheatmap}
+mat <- assay(rld)
+ann <- as.data.frame(colData(dds))[, c("condition", "condition2", "condition3"), drop = FALSE]
+
+library(pheatmap)
+
+topVar <- head(order(rowVars(mat), decreasing = TRUE), 500)
+mat_top <- mat[topVar, ]
+
+rb_palette <- colorRampPalette(c("#2166AC", "white", "#B2182B"))(100)
+
+pheatmap(
+  mat_top,
+  annotation_col = ann,
+  show_rownames = FALSE,
+  fontsize_col = 9,
+  scale = "row",
+  clustering_distance_rows = "correlation",
+  clustering_distance_cols = "correlation",
+  color = rb_palette,
+  main = "Top variable genes (VST, row-scaled)"
+)
+```
+
+## All genes
+
+```{r}
+finalDE <- left_join(finalDE, data, by = c("symbol"))
+
+finalDE %>%
+  datatable_fun
+
+finalDE_padj05 %>%
+  download_this(
+    output_name = "All_genes",
+    output_extension = ".xlsx",
+    button_label = "Download table as xlsx",
+    button_type = "success",
+    has_icon = TRUE,
+    icon = "fa fa-save"
+  )
+```
+
+# Analyse d'enrichissement Gene Ontology
+
+## Over-representation analysis {.tabset .tabset-fade}
+
+### msigdb
+
+```{r}
+library(msigdbr)
+
+C3_t2g <- msigdbr(species = "Homo sapiens", category = "H") %>%
+  dplyr::select(gs_name, gene_symbol)
+
+em2 <- GSEA(finalDE_symbol, TERM2GENE = C3_t2g, pvalueCutoff = .5, pAdjustMethod = "fdr")
+
+to_plot <- em2@result %>% filter(p.adjust <= 0.05) %>% dplyr::select(ID, NES, pvalue, p.adjust)
+
+to_plot <- to_plot %>% dplyr::arrange(NES)
+
+to_plot %>%
+  ggplot(aes(fill = p.adjust, y = NES, x = ID)) +
+  geom_bar(position = "stack", stat = "identity", color = "black") +
+  theme_bw(12) +
+  theme(
+    axis.text.x = element_text(face = "bold", color = "black", angle = 45, hjust = 1),
+    plot.margin = margin(.5, .5, .5, 6, "cm"),
+    legend.text = element_text(face = "bold"),
+    legend.title = element_text(face = "bold")
+  ) +
+  xlab("") +
+  ylab("NES") +
+  scale_fill_gradient2(low = "red", mid = "blue", high = "red")
+
+ggplot() +
+  geom_bar(
+    data = to_plot,
+    aes(x = NES, y = reorder(ID, -p.adjust), fill = p.adjust),
+    stat = "identity",
+    width = 0.7,
+    position = position_dodge(0.8)
+  ) +
+  scale_fill_gradient(low = "red", high = "#FFE6E6") +
+  theme_classic() +
+  theme(
+    axis.text.x = element_text(angle = 0, hjust = 1, size = 10, color = "black", face = "bold"),
+    axis.text.y = element_text(size = 10, color = "black", face = "bold")
+  ) +
+  theme(
+    legend.position = "bottom",
+    legend.text = element_text(size = 12),
+    legend.title = element_text(size = 14, face = "bold")
+  ) +
+  ylab("")
+```
+
+### Cellular Component {.tabset .tabset-fade}
+
+#### Up {.tabset .tabset-fade}
+
+##### Table
+
+```{r}
+gocc_up <- enrichGO(
+  gene = gene.df_up,
+  universe = univ.gene.df$ENTREZID,
+  OrgDb = org.Hs.eg.db,
+  ont = "CC",
+  pAdjustMethod = "fdr",
+  qvalueCutoff = 0.05,
+  readable = TRUE,
+  minGSSize = 10
+)
+
+if (!is.null(gocc_up)) {
+  test <- any(gocc_up@result$p.adjust < 0.1)
+
+  if (test) {
+    gocc_up <- setReadable(gocc_up, OrgDb = org.Hs.eg.db, keyType = "ENTREZID")
+
+    gocc_2 <- gocc_up %>% data.frame()
+    gocc_2 %>% datatable_fun
+  }
+}
+if (!is.null(gocc_up)) {
+  if (test) {
+    gocc_2 %>%
+      download_this(
+        output_name = "ORA CC up",
+        output_extension = ".xlsx",
+        button_label = "Download table as xlsx",
+        button_type = "success",
+        has_icon = TRUE,
+        icon = "fa fa-save"
+      )
+  }
+}
+```
+
+##### Dotplot
+
+```{r}
+if (!is.null(gocc_up)) {
+  if (test) {
+    dotplot(gocc_up, showCategory = 15) + ggtitle("dotplot for ORA cc")
+  }
+}
+```
+
+##### Gene-Concept Network
+
+```{r}
+if (!is.null(gocc_up)) {
+  if (test) {
+    cnetplot(gocc_up, foldChange = gsea_gene)
+  }
+}
+```
+
+#### Down {.tabset .tabset-fade}
+
+##### Table
+
+```{r}
+gocc_down <- enrichGO(
+  gene = gene.df_down,
+  universe = univ.gene.df$ENTREZID,
+  OrgDb = org.Hs.eg.db,
+  ont = "CC",
+  pAdjustMethod = "fdr",
+  qvalueCutoff = 0.05,
+  readable = TRUE,
+  minGSSize = 10
+)
+
+if (!is.null(gocc_down)) {
+  test <- any(gocc_down@result$p.adjust < 0.1)
+
+  if (test) {
+    gocc_down <- setReadable(gocc_down, OrgDb = org.Hs.eg.db, keyType = "ENTREZID")
+
+    gocc_2 <- gocc_down %>% data.frame()
+    gocc_2 %>% datatable_fun
+  }
+}
+if (!is.null(gocc_down)) {
+  if (test) {
+    gocc_2 %>%
+      download_this(
+        output_name = "ORA CC down",
+        output_extension = ".xlsx",
+        button_label = "Download table as xlsx",
+        button_type = "success",
+        has_icon = TRUE,
+        icon = "fa fa-save"
+      )
+  }
+}
+```
+
+##### Dotplot
+
+```{r}
+if (!is.null(gocc_down)) {
+  if (test) {
+    dotplot(gocc_down, showCategory = 15) + ggtitle("dotplot for ORA cc")
+  }
+}
+```
+
+##### Gene-Concept Network
+
+```{r}
+if (!is.null(gocc_down)) {
+  if (test) {
+    cnetplot(gocc_down, foldChange = gsea_gene)
+  }
+}
+```
+
+### Molecular Function {.tabset .tabset-fade}
+
+#### Up {.tabset .tabset-fade}
+
+##### Table
+
+```{r}
+gomf_up <- enrichGO(
+  gene = gene.df_up,
+  universe = univ.gene.df$ENTREZID,
+  OrgDb = org.Hs.eg.db,
+  ont = "MF",
+  pAdjustMethod = "BH",
+  pvalueCutoff = 0.05,
+  readable = TRUE,
+  minGSSize = 10
+)
+
+if (!is.null(gomf_up)) {
+  test <- any(gomf_up@result$p.adjust < 0.1)
+
+  if (test) {
+    gomf_up <- setReadable(gomf_up, OrgDb = org.Hs.eg.db, keyType = "ENTREZID")
+
+    gomf_2 <- gomf_up %>% as.data.frame()
+    gomf_2 %>% datatable_fun
+  }
+}
+
+if (!is.null(gomf_up)) {
+  if (test) {
+    gomf_2 %>%
+      download_this(
+        output_name = "ORA MF up",
+        output_extension = ".xlsx",
+        button_label = "Download table as xlsx",
+        button_type = "success",
+        has_icon = TRUE,
+        icon = "fa fa-save"
+      )
+  }
+}
+```
+
+##### Dotplot
+
+```{r}
+if (!is.null(gomf_up)) {
+  if (test) {
+    dotplot(gomf_up, showCategory = 15) + ggtitle("dotplot for ORA MF")
+  }
+}
+```
+
+##### Gene-Concept Network
+
+```{r}
+if (!is.null(gomf_up)) {
+  if (test) {
+    cnetplot(gomf_up, foldChange = gsea_gene)
+  }
+}
+```
+
+#### Down {.tabset .tabset-fade}
+
+##### Table
+
+```{r}
+gomf_down <- enrichGO(
+  gene = gene.df_down,
+  universe = univ.gene.df$ENTREZID,
+  OrgDb = org.Hs.eg.db,
+  ont = "MF",
+  pAdjustMethod = "BH",
+  qvalueCutoff = 0.05,
+  readable = TRUE,
+  minGSSize = 10
+)
+
+if (!is.null(gomf_down)) {
+  test <- any(gomf_down@result$p.adjust < 0.1)
+
+  if (test) {
+    gomf_down <- setReadable(gomf_down, OrgDb = org.Hs.eg.db, keyType = "ENTREZID")
+
+    gomf_2 <- gomf_down %>% as.data.frame()
+    gomf_2 %>% datatable_fun
+  }
+}
+
+if (!is.null(gomf_down)) {
+  if (test) {
+    gomf_2 %>%
+      download_this(
+        output_name = "ORA MF down",
+        output_extension = ".xlsx",
+        button_label = "Download table as xlsx",
+        button_type = "success",
+        has_icon = TRUE,
+        icon = "fa fa-save"
+      )
+  }
+}
+```
+
+##### Dotplot
+
+```{r}
+if (!is.null(gomf_down)) {
+  if (test) {
+    dotplot(gomf_down, showCategory = 15) + ggtitle("dotplot for ORA MF")
+  }
+}
+```
+
+##### Gene-Concept Network
+
+```{r}
+if (!is.null(gomf_down)) {
+  if (test) {
+    cnetplot(gomf_down, foldChange = gsea_gene)
+  }
+}
+```
+
+### Biolgical Process {.tabset .tabset-fade}
+
+#### Up {.tabset .tabset-fade}
+
+##### Table
+
+```{r}
+gobp_up <- enrichGO(
+  gene = gene.df_up,
+  universe = univ.gene.df$ENTREZID,
+  OrgDb = org.Hs.eg.db,
+  ont = "BP",
+  pAdjustMethod = "fdr",
+  qvalueCutoff = 0.05,
+  readable = TRUE,
+  minGSSize = 10
+)
+
+if (!is.null(gobp_up)) {
+  test <- any(gobp_up@result$p.adjust < 0.1)
+
+  if (test) {
+    gobp_up <- setReadable(gobp_up, OrgDb = org.Hs.eg.db, keyType = "ENTREZID")
+
+    gobp_2 <- gobp_up %>% as.data.frame()
+    gobp_2 %>% datatable_fun
+  }
+}
+
+if (!is.null(gobp_up)) {
+  if (test) {
+    gobp_2 %>%
+      download_this(
+        output_name = "ORA BP up",
+        output_extension = ".xlsx",
+        button_label = "Download table as xlsx",
+        button_type = "success",
+        has_icon = TRUE,
+        icon = "fa fa-save"
+      )
+  }
+}
+```
+
+##### Dotplot
+
+```{r}
+if (!is.null(gobp_up)) {
+  if (test) {
+    dotplot(gobp_up, showCategory = 15) + ggtitle("dotplot for ORA BP")
+  }
+}
+```
+
+##### Gene-Concept Network
+
+```{r}
+if (!is.null(gobp_up)) {
+  if (test) {
+    cnetplot(gobp_up, foldChange = gsea_gene)
+  }
+}
+```
+
+#### Down {.tabset .tabset-fade}
+
+##### Table
+
+```{r}
+gobp_down <- enrichGO(
+  gene = gene.df_down,
+  universe = univ.gene.df$ENTREZID,
+  OrgDb = org.Hs.eg.db,
+  ont = "BP",
+  pAdjustMethod = "fdr",
+  qvalueCutoff = 0.05,
+  readable = TRUE,
+  minGSSize = 10
+)
+
+if (!is.null(gobp_down)) {
+  test <- any(gobp_down@result$p.adjust < 0.1)
+
+  if (test) {
+    gobp_down <- setReadable(gobp_down, OrgDb = org.Hs.eg.db, keyType = "ENTREZID")
+
+    gobp_2 <- gobp_down %>% as.data.frame()
+    gobp_2 %>% datatable_fun
+  }
+}
+
+if (!is.null(gobp_down)) {
+  if (test) {
+    gobp_2 %>%
+      download_this(
+        output_name = "ORA BP down",
+        output_extension = ".xlsx",
+        button_label = "Download table as xlsx",
+        button_type = "success",
+        has_icon = TRUE,
+        icon = "fa fa-save"
+      )
+  }
+}
+```
+
+##### Dotplot
+
+```{r}
+if (!is.null(gobp_down)) {
+  if (test) {
+    dotplot(gobp_down, showCategory = 15) + ggtitle("dotplot for ORA BP")
+  }
+}
+```
+
+##### Gene-Concept Network
+
+```{r}
+if (!is.null(gobp_down)) {
+  if (test) {
+    cnetplot(gobp_down, foldChange = gsea_gene)
+  }
+}
+```
+
+```{r eval=FALSE, include=FALSE}
+gc()
+```
+
+## GO Gene Set Enrichment Analysis {.tabset .tabset-fade}
+
+### Cellular Component {.tabset .tabset-fade}
+
+#### Table
+
+```{r}
+egocc <- gseGO(
+  geneList = gsea_gene,
+  OrgDb = org.Hs.eg.db,
+  ont = "CC",
+  keyType = "ENTREZID",
+  pAdjustMethod = "fdr",
+  maxGSSize = 500,
+  pvalueCutoff = 0.05,
+  verbose = FALSE
+)
+
+if (!is.null(egocc)) {
+  test <- any(egocc@result$p.adjust < 0.05)
+
+  if (test) {
+    egocc <- setReadable(egocc, OrgDb = org.Hs.eg.db, keyType = "ENTREZID")
+
+    egocc_2 <- egocc %>% data.frame()
+    egocc_2 %>% datatable_fun
+  }
+}
+if (!is.null(egocc)) {
+  if (test) {
+    egocc_2 %>%
+      download_this(
+        output_name = "GSEA CC",
+        output_extension = ".xlsx",
+        button_label = "Download table as xlsx",
+        button_type = "success",
+        has_icon = TRUE,
+        icon = "fa fa-save"
+      )
+  }
+}
+```
+
+#### Dotplot
+
+```{r}
+if (!is.null(egocc)) {
+  if (test) {
+    dotplot(egocc, showCategory = 15) + ggtitle("dotplot for GSEA cc")
+  }
+}
+```
+
+```{r eval=FALSE, include=FALSE}
+gc()
+```
+
+### Molecular Function {.tabset .tabset-fade}
+
+#### Table
+
+```{r}
+egomf <- gseGO(
+  geneList = gsea_gene,
+  OrgDb = org.Hs.eg.db,
+  ont = "MF",
+  pAdjustMethod = "fdr",
+  pvalueCutoff = 0.05,
+  verbose = FALSE
+)
+
+if (!is.null(egomf)) {
+  test <- any(egomf@result$p.adjust < 0.05)
+
+  if (test) {
+    egomf <- setReadable(egomf, OrgDb = org.Hs.eg.db, keyType = "ENTREZID")
+
+    egomf_2 <- egomf %>% data.frame()
+    egomf_2 %>% datatable_fun
+  }
+}
+if (!is.null(egomf)) {
+  if (test) {
+    egomf_2 %>%
+      download_this(
+        output_name = "GSEA CC",
+        output_extension = ".xlsx",
+        button_label = "Download table as xlsx",
+        button_type = "success",
+        has_icon = TRUE,
+        icon = "fa fa-save"
+      )
+  }
+}
+```
+
+#### Dotplot
+
+```{r}
+if (!is.null(egomf)) {
+  if (test) {
+    dotplot(egomf, showCategory = 15) + ggtitle("dotplot for GSEA MF")
+  }
+}
+```
+
+```{r eval=FALSE, include=FALSE}
+gc()
+```
+
+### Biolgical Process {.tabset .tabset-fade}
+
+#### Table
+
+```{r}
+egobp <- gseGO(
+  geneList = gsea_gene,
+  OrgDb = org.Hs.eg.db,
+  ont = "BP",
+  pAdjustMethod = "fdr",
+  pvalueCutoff = 0.05,
+  verbose = FALSE
+)
+
+if (!is.null(egobp)) {
+  test <- any(egobp@result$p.adjust < 0.05)
+
+  if (test) {
+    egobp <- setReadable(egobp, OrgDb = org.Hs.eg.db, keyType = "ENTREZID")
+
+    egobp_2 <- egobp %>% as.data.frame()
+    egobp_2 %>% datatable_fun
+  }
+}
+
+if (!is.null(egobp)) {
+  if (test) {
+    egobp_2 %>%
+      download_this(
+        output_name = "GSEA BP",
+        output_extension = ".xlsx",
+        button_label = "Download table as xlsx",
+        button_type = "success",
+        has_icon = TRUE,
+        icon = "fa fa-save"
+      )
+  }
+}
+```
+
+#### Dotplot
+
+```{r}
+if (!is.null(egobp)) {
+  if (test) {
+    dotplot(egobp, showCategory = 15) + ggtitle("dotplot for GSEA BP")
+  }
+}
+```
+
+```{r eval=FALSE, include=FALSE}
+gc()
+```
+
+# Pathway Enrichment
+
+## KEGG {.tabset .tabset-fade}
+
+### Pathway ORA {.tabset .tabset-fade}
+
+#### Up {.tabset .tabset-fade}
+
+##### Table
+
+```{r}
+kk_up <- enrichKEGG(
+  gene = gene.df_up,
+  organism = "hsa",
+  keyType = "kegg",
+  universe = univ.gene.df$ENTREZID,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "fdr",
+  maxGSSize = 500,
+  minGSSize = 10
+)
+
+if (!is.null(kk_up)) {
+  test <- any(kk_up@result$p.adjust < 0.1)
+
+  if (test) {
+    kk_up <- setReadable(kk_up, OrgDb = org.Hs.eg.db, keyType = "ENTREZID")
+
+    kk_2 <- kk_up %>% as.data.frame()
+
+    kk_2 %>% datatable_fun
+  }
+}
+
+if (!is.null(kk_up)) {
+  if (test) {
+    kk_2 %>%
+      download_this(
+        output_name = "ORA KEGG up",
+        output_extension = ".xlsx",
+        button_label = "Download table as xlsx",
+        button_type = "success",
+        has_icon = TRUE,
+        icon = "fa fa-save"
+      )
+  }
+}
+```
+
+##### Dotplot
+
+```{r}
+if (!is.null(kk_up)) {
+  if (test) {
+    dotplot(kk_up, showCategory = 15) + ggtitle("dotplot for ORA KEGG")
+  }
+}
+```
+
+#### Down {.tabset .tabset-fade}
+
+##### Table
+
+```{r}
+kk_down <- enrichKEGG(
+  gene = gene.df_down,
+  organism = "hsa",
+  keyType = "kegg",
+  universe = univ.gene.df$ENTREZID,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "fdr",
+  maxGSSize = 500,
+  minGSSize = 10
+)
+
+if (!is.null(kk_down)) {
+  test <- any(kk_down@result$p.adjust < 0.1)
+
+  if (test) {
+    kk_down <- setReadable(kk_down, OrgDb = org.Hs.eg.db, keyType = "ENTREZID")
+
+    kk_2 <- kk_down %>% as.data.frame()
+    kk_2 %>% datatable_fun
+  }
+}
+
+if (!is.null(kk_down)) {
+  if (test) {
+    kk_2 %>%
+      download_this(
+        output_name = "ORA KEGG down",
+        output_extension = ".xlsx",
+        button_label = "Download table as xlsx",
+        button_type = "success",
+        has_icon = TRUE,
+        icon = "fa fa-save"
+      )
+  }
+}
+```
+
+##### Dotplot
+
+```{r}
+if (!is.null(kk_down)) {
+  if (test) {
+    dotplot(kk_down, showCategory = 15) + ggtitle("dotplot for ORA KEGG")
+  }
+}
+```
+
+### Pathway GSEA {.tabset .tabset-fade}
+
+#### Table
+
+```{r}
+kkg <- gseKEGG(
+  gene = gsea_gene,
+  organism = "hsa",
+  keyType = "kegg",
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "fdr",
+  maxGSSize = 500,
+  minGSSize = 10
+)
+
+if (!is.null(kkg)) {
+  test <- any(kkg@result$p.adjust < 0.05)
+
+  if (test) {
+    kkg <- setReadable(kkg, OrgDb = org.Hs.eg.db, keyType = "ENTREZID")
+
+    kkg_2 <- kkg %>% as.data.frame()
+    kkg_2 %>% datatable_fun
+  }
+}
+
+if (!is.null(kkg)) {
+  if (test) {
+    kkg_2 %>%
+      download_this(
+        output_name = "GSEA KEGG",
+        output_extension = ".xlsx",
+        button_label = "Download table as xlsx",
+        button_type = "success",
+        has_icon = TRUE,
+        icon = "fa fa-save"
+      )
+  }
+}
+```
+
+#### Dotplot
+
+```{r}
+if (!is.null(kkg)) {
+  if (test) {
+    dotplot(kkg, showCategory = 15) + ggtitle("dotplot for GSEA KEGG")
+  }
+}
+```
+
+```{r eval=FALSE, include=FALSE}
+gc()
+```
+
+## WikiPathways {.tabset .tabset-fade}
+
+### Pathway ORA {.tabset .tabset-fade}
+
+#### Up {.tabset .tabset-fade}
+
+##### Table
+
+```{r}
+wpres_up <- enrichWP(
+  gene.df_up,
+  organism = "Homo sapiens",
+  universe = univ.gene.df$ENTREZID,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "fdr",
+  maxGSSize = 500,
+  minGSSize = 10
+)
+
+if (!is.null(wpres_up)) {
+  test <- any(wpres_up@result$p.adjust < 0.1)
+
+  if (test) {
+    wpres_up <- setReadable(wpres_up, OrgDb = org.Hs.eg.db, keyType = "ENTREZID")
+
+    wpres2 <- wpres_up %>% as.data.frame()
+    wpres2 %>% datatable_fun
+  }
+}
+
+if (!is.null(wpres_up)) {
+  if (test) {
+    wpres2 %>%
+      download_this(
+        output_name = "ORA WikiPathways up",
+        output_extension = ".xlsx",
+        button_label = "Download table as xlsx",
+        button_type = "success",
+        has_icon = TRUE,
+        icon = "fa fa-save"
+      )
+  }
+}
+```
+
+##### Dotplot
+
+```{r}
+if (!is.null(wpres_up)) {
+  if (test) {
+    dotplot(wpres_up, showCategory = 15) + ggtitle("dotplot for ORA WikiPathways")
+  }
+}
+```
+
+#### Down {.tabset .tabset-fade}
+
+##### Table
+
+```{r}
+wpres_down <- enrichWP(
+  gene.df_down,
+  organism = "Homo sapiens",
+  universe = univ.gene.df$ENTREZID,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "fdr",
+  maxGSSize = 500,
+  minGSSize = 10
+)
+
+if (!is.null(wpres_down)) {
+  test <- any(wpres_down@result$p.adjust < 0.1)
+
+  if (test) {
+    wpres_down <- setReadable(wpres_down, OrgDb = org.Hs.eg.db, keyType = "ENTREZID")
+
+    wpres2 <- wpres_down %>% as.data.frame()
+    wpres2 %>% datatable_fun
+  }
+}
+
+if (!is.null(wpres_down)) {
+  if (test) {
+    wpres2 %>%
+      download_this(
+        output_name = "ORA WikiPathways down",
+        output_extension = ".xlsx",
+        button_label = "Download table as xlsx",
+        button_type = "success",
+        has_icon = TRUE,
+        icon = "fa fa-save"
+      )
+  }
+}
+```
+
+##### Dotplot
+
+```{r, fig.width = 6, fig.height=7}
+if (!is.null(wpres_down)) {
+  if (test) {
+    dotplot(wpres_down, showCategory = 15) + ggtitle("dotplot for GSEA WikiPathways")
+  }
+}
+```
+
+### Pathway GSEA {.tabset .tabset-fade}
+
+#### Table
+
+```{r}
+wpresg <- gseWP(
+  gsea_gene,
+  organism = "Homo sapiens",
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "fdr",
+  minGSSize = 10
+)
+
+if (!is.null(wpresg)) {
+  test <- any(wpresg@result$p.adjust < 0.05)
+
+  if (test) {
+    wpresg <- setReadable(wpresg, OrgDb = org.Hs.eg.db, keyType = "ENTREZID")
+
+    wpresg2 <- wpresg %>% as.data.frame()
+    wpresg2 %>% datatable_fun
+  }
+}
+
+if (!is.null(wpresg)) {
+  if (test) {
+    wpresg2 %>%
+      download_this(
+        output_name = "GSEA WikiPathways",
+        output_extension = ".xlsx",
+        button_label = "Download table as xlsx",
+        button_type = "success",
+        has_icon = TRUE,
+        icon = "fa fa-save"
+      )
+  }
+}
+```
+
+#### Dotplot
+
+```{r, fig.width = 6, fig.height=7}
+if (!is.null(wpresg)) {
+  if (test) {
+    dotplot(wpresg, showCategory = 15) + ggtitle("dotplot for GSEA WikiPathways")
+  }
+}
+```
+
+```{r eval=FALSE, include=FALSE}
+gc()
+```
+
+## Reactome {.tabset .tabset-fade}
+
+### Pathway ORA {.tabset .tabset-fade}
+
+#### Up {.tabset .tabset-fade}
+
+##### Table
+
+```{r}
+reactome_up <- enrichPathway(
+  gene = gene.df_up,
+  universe = finalDE_entrez$ENTREZID,
+  pAdjustMethod = "fdr",
+  maxGSSize = 500,
+  pvalueCutoff = 0.05,
+  readable = TRUE
+)
+
+if (!is.null(reactome_up)) {
+  test <- any(reactome_up@result$p.adjust < 0.1)
+
+  if (test) {
+    reactome_up <- setReadable(reactome_up, OrgDb = org.Hs.eg.db, keyType = "ENTREZID")
+
+    reactome_2 <- reactome_up %>% as.data.frame()
+    reactome_2 %>% datatable_fun
+  }
+}
+
+if (!is.null(reactome_up)) {
+  if (test) {
+    reactome_2 %>%
+      download_this(
+        output_name = "ORA reactome up",
+        output_extension = ".xlsx",
+        button_label = "Download table as xlsx",
+        button_type = "success",
+        has_icon = TRUE,
+        icon = "fa fa-save"
+      )
+  }
+}
+```
+
+##### Dotplot
+
+```{r, fig.width = 6, fig.height=7}
+if (!is.null(reactome_up)) {
+  if (test) {
+    dotplot(reactome_up, showCategory = 10) + ggtitle("dotplot for ORA reactome_up")
+  }
+}
+```
+
+#### Down {.tabset .tabset-fade}
+##### Table
+
+```{r}
+reactome_down <- enrichPathway(
+  gene = gene.df_down,
+  universe = finalDE_entrez$ENTREZID,
+  pAdjustMethod = "fdr",
+  minGSSize = 10,
+  maxGSSize = 500,
+  pvalueCutoff = 0.05,
+  readable = TRUE
+)
+
+if (!is.null(reactome_down)) {
+  test <- any(reactome_down@result$p.adjust < 0.1)
+
+  if (test) {
+    reactome_down <- setReadable(reactome_down, OrgDb = org.Hs.eg.db, keyType = "ENTREZID")
+
+    reactome_2 <- reactome_down %>% as.data.frame()
+    reactome_2 %>% datatable_fun
+  }
+}
+
+if (!is.null(reactome_down)) {
+  if (test) {
+    reactome_2 %>%
+      download_this(
+        output_name = "ORA reactome down",
+        output_extension = ".xlsx",
+        button_label = "Download table as xlsx",
+        button_type = "success",
+        has_icon = TRUE,
+        icon = "fa fa-save"
+      )
+  }
+}
+```
+
+##### Dotplot
+
+```{r, fig.width = 6, fig.height=7}
+if (!is.null(reactome_down)) {
+  if (test) {
+    dotplot(reactome_down, showCategory = 10) + ggtitle("dotplot for ORA reactome_down")
+  }
+}
+```
+
+```{r eval=FALSE, include=FALSE}
+gc()
+```
+
+### Pathway GSEA {.tabset .tabset-fade}
+
+#### Table
+
+```{r}
+reactome_gsea <- gsePathway(
+  gsea_gene,
+  pAdjustMethod = "fdr",
+  maxGSSize = 200,
+  minGSSize = 10,
+  pvalueCutoff = 0.5,
+  organism = "human"
+)
+
+if (!is.null(reactome_gsea)) {
+  test <- any(reactome_gsea@result$p.adjust < 0.05)
+
+  if (test) {
+    reactome_gsea <- setReadable(reactome_gsea, OrgDb = org.Hs.eg.db, keyType = "ENTREZID")
+
+    reactome_gsea_2 <- reactome_gsea %>% as.data.frame()
+    reactome_gsea_2 %>% datatable_fun
+  }
+}
+
+if (!is.null(reactome_gsea)) {
+  if (test) {
+    reactome_gsea_2 %>%
+      download_this(
+        output_name = "GSEA Reactome",
+        output_extension = ".xlsx",
+        button_label = "Download table as xlsx",
+        button_type = "success",
+        has_icon = TRUE,
+        icon = "fa fa-save"
+      )
+  }
+}
+```
+
+#### Dotplot
+
+```{r, fig.width = 6, fig.height=7}
+if (!is.null(reactome_gsea)) {
+  if (test) {
+    dotplot(reactome_gsea, showCategory = 10) + ggtitle("dotplot for GSEA Reactome")
+  }
+}
+```
