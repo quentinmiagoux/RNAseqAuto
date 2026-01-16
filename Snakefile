@@ -44,5 +44,5 @@ rule render_rmd:
     shell:
         """
         mkdir -p {params.outdir}
-        Rscript -e "rmarkdown::render(\"{input.rmd}\", output_file=\"{output}\", params=list(group_a=\"{params.group_a}\", group_b=\"{params.group_b}\", comparison=\"{wildcards.comparison}\", design_formula=\"{params.design_formula}\"))"
+        Rscript -e 'rmarkdown::render(\"{input.rmd}\", output_file=\"{output}\", params=list(group_a=\"{params.group_a}\", group_b=\"{params.group_b}\", comparison=\"{wildcards.comparison}\", design_formula=\"{params.design_formula}\"))'
         """
