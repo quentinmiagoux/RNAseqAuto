@@ -1,3 +1,5 @@
+configfile: "config.yaml"
+
 import csv
 from pathlib import Path
 
