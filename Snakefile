@@ -26,12 +26,23 @@ comparisons_by_name = {row["comparison"]: row for row in comparisons}
 
 rule all:
     input:
+        "results",
         expand("results/{comparison}.html", comparison=comparisons_by_name.keys())
+
+
+rule init_results:
+    output:
+        directory("results")
+    shell:
+        """
+        mkdir -p {output}
+        """
 
 
 rule render_rmd:
     input:
         rmd=lambda wc: comparisons_by_name[wc.comparison]["rmd"],
+        results_dir="results",
     output:
         "results/{comparison}.html",
     params:
@@ -44,5 +55,5 @@ rule render_rmd:
     shell:
         """
         mkdir -p {params.outdir}
-        Rscript -e 'rmarkdown::render(\"{input.rmd}\", output_file=\"{output}\", params=list(group_a=\"{params.group_a}\", group_b=\"{params.group_b}\", comparison=\"{wildcards.comparison}\", design_formula=\"{params.design_formula}\"))'
+        Rscript -e "rmarkdown::render(\"{input.rmd}\", output_file=\"{output}\", params=list(group_a=\"{params.group_a}\", group_b=\"{params.group_b}\", comparison=\"{wildcards.comparison}\", design_formula=\"{params.design_formula}\"))"
         """
