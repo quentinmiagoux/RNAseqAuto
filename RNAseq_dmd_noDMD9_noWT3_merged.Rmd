@@ -71,7 +71,7 @@ expr3 = expr3[,-1]
 colnames(expr3) <- colnames(expr3) %>% str_remove("read_count_")
 
 expr3 <- expr3[, str_detect(colnames(expr3),"DMD|WT")] 
-
+expr3 <- expr3[, !str_detect(colnames(expr3), "DMD9|WT3")]
 
 ord <- order(as.integer(sub("^.*_", "", colnames(expr3))))
 

@@ -115,10 +115,9 @@ expr3 <- expr3[, -1]
 
 colnames(expr3) <- colnames(expr3) %>%
   str_remove("^read_count_") %>%
-  str_replace("^DNM2_", "DNMII_")
+  str_replace("^DNM2_", "DNMII")
 
 expr3 <- expr3[, str_detect(colnames(expr3), "^(DMD|WT|DN|LMNA|GSDII|DNMII)")]
-expr3 <- expr3[, !str_detect(colnames(expr3), "DMD9|WT3")]
 
 ord <- order(as.integer(sub("^.*_", "", colnames(expr3))))
 expr3 <- expr3[, ord]
@@ -127,6 +126,8 @@ colnames(expr3) <- colnames(expr3) %>%
   sub("[0-9]+_", "_", .) %>%
   str_remove("_")
 colnames(expr3) <- paste0(colnames(expr3), "_", rep(c(1, 2, 3)))
+
+expr3 <- expr3[, !str_detect(colnames(expr3), "DMD9|WT3")]
 
 coldata <- data.frame(samples = colnames(expr3))
 coldata$condition <- sub("[0-9].*$", "", coldata$samples)
@@ -331,14 +332,14 @@ finalDE_padj05 %>%
 
 ## All genes
 
-```{r}
+```{r allgenes}
 
 finalDE <- left_join(finalDE,data, by=c("symbol"))
 
 finalDE %>%  
   datatable_fun
 
-finalDE_padj05 %>% 
+finalDE %>% 
   download_this(
     output_name = "All_genes",
     output_extension = ".xlsx",
@@ -360,7 +361,7 @@ finalDE_padj05 %>%
 
 ##### Table
 
-```{r}
+```{r goccup}
 gocc_up <- enrichGO(
   gene = gene.df_up,
   universe = univ.gene.df$ENTREZID,
@@ -397,7 +398,7 @@ if (!is.null(gocc_up)) {
 
 ##### Dotplot
 
-```{r}
+```{r dotplotgocc}
 if (!is.null(gocc_up)) {
   if (test) {
     dotplot(gocc_up, showCategory = 15) + ggtitle("dotplot for ORA cc")
@@ -407,7 +408,7 @@ if (!is.null(gocc_up)) {
 
 ##### Gene-Concept Network
 
-```{r}
+```{r cnetplotgocc}
 if (!is.null(gocc_up)) {
   if (test) {
     cnetplot(gocc_up, foldChange = gsea_gene)

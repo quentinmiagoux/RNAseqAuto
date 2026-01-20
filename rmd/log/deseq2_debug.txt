@@ -1,1 +1,17 @@
 ### DESIGN
+~condition2
+
+### condition2 class
+[1] "factor"
+
+### condition2 table
+
+AllDiseases          WT 
+         45           9 
+
+### condition2 levels
+[1] "AllDiseases" "WT"         
+
+### group_a / group_b
+[1] "AllDiseases"
+[1] "WT"

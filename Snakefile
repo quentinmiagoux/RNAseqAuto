@@ -39,11 +39,13 @@ rule render_rmd:
         coldata_xlsx=lambda wc: abs_path(config["coldata_xlsx"]),
     output:
         "results/{comparison}.html"
+    log:
+        "logs/render_rmd/{comparison}.log"
     params:
         group_a=lambda wc: comparisons_by_name[wc.comparison]["group_a"],
         group_b=lambda wc: comparisons_by_name[wc.comparison]["group_b"],
         design_formula=lambda wc: r_escape(
-            config.get("design_formula", "~ Reprogrammation + Age + sex + condition2")
+            config.get("design_formula", "~ condition2")
         ),
     shell:
         r"""
@@ -60,5 +62,5 @@ rule render_rmd:
             expr_xlsx=\"{input.expr_xlsx}\",
             coldata_xlsx=\"{input.coldata_xlsx}\"
           )
-        )"
+        )" &> "{log}"
         """

@@ -1,0 +1,131 @@
+
+
+processing file: rnaseq_comparison_merged.Rmd
+1/120                   
+2/120 [setup]           
+3/120                   
+4/120 [packages]        
+5/120                   
+6/120 [functions]       
+7/120                   
+8/120 [transform-data]  
+9/120                   
+10/120 [DESeq2]          
+11/120                   
+12/120 [entrezid]        
+13/120                   
+14/120 [PCA]             
+15/120                   
+16/120 [PCA2]            
+17/120                   
+18/120 [pheatmap]        
+19/120                   
+20/120 [unnamed-chunk-1] 
+21/120                   
+22/120 [allgenes]        
+23/120                   
+24/120 [goccup]          
+25/120                   
+26/120 [dotplotgocc]     
+27/120                   
+28/120 [cnetplotgocc]    
+29/120                   
+30/120 [unnamed-chunk-2] 
+31/120                   
+32/120 [unnamed-chunk-3] 
+33/120                   
+34/120 [unnamed-chunk-4] 
+35/120                   
+36/120 [unnamed-chunk-5] 
+37/120                   
+38/120 [unnamed-chunk-6] 
+39/120                   
+40/120 [unnamed-chunk-7] 
+41/120                   
+42/120 [unnamed-chunk-8] 
+43/120                   
+44/120 [unnamed-chunk-9] 
+45/120                   
+46/120 [unnamed-chunk-10]
+47/120                   
+48/120 [unnamed-chunk-11]
+49/120                   
+50/120 [unnamed-chunk-12]
+51/120                   
+52/120 [unnamed-chunk-13]
+53/120                   
+54/120 [unnamed-chunk-14]
+55/120                   
+56/120 [unnamed-chunk-15]
+57/120                   
+58/120 [unnamed-chunk-16]
+59/120                   
+60/120 [unnamed-chunk-17]
+61/120                   
+62/120 [unnamed-chunk-18]
+63/120                   
+64/120 [unnamed-chunk-19]
+65/120                   
+66/120 [unnamed-chunk-20]
+67/120                   
+68/120 [unnamed-chunk-21]
+69/120                   
+70/120 [unnamed-chunk-22]
+71/120                   
+72/120 [unnamed-chunk-23]
+73/120                   
+74/120 [unnamed-chunk-24]
+75/120                   
+76/120 [unnamed-chunk-25]
+77/120                   
+78/120 [unnamed-chunk-26]
+79/120                   
+80/120 [unnamed-chunk-27]
+81/120                   
+82/120 [unnamed-chunk-28]
+83/120                   
+84/120 [unnamed-chunk-29]
+85/120                   
+86/120 [unnamed-chunk-30]
+87/120                   
+88/120 [unnamed-chunk-31]
+89/120                   
+90/120 [unnamed-chunk-32]
+91/120                   
+92/120 [unnamed-chunk-33]
+93/120                   
+94/120 [unnamed-chunk-34]
+95/120                   
+96/120 [unnamed-chunk-35]
+97/120                   
+98/120 [unnamed-chunk-36]
+99/120                   
+100/120 [unnamed-chunk-37]
+101/120                   
+102/120 [unnamed-chunk-38]
+103/120                   
+104/120 [unnamed-chunk-39]
+105/120                   
+106/120 [unnamed-chunk-40]
+107/120                   
+108/120 [unnamed-chunk-41]
+109/120                   
+110/120 [unnamed-chunk-42]
+111/120                   
+112/120 [unnamed-chunk-43]
+113/120                   
+114/120 [unnamed-chunk-44]
+115/120                   
+116/120 [unnamed-chunk-45]
+117/120                   
+118/120 [unnamed-chunk-46]
+119/120                   
+120/120 [unnamed-chunk-47]
+output file: rnaseq_comparison_merged.knit.md
+
+/home/quentin/miniconda3/envs/snakemake/bin/pandoc +RTS -K512m -RTS rnaseq_comparison_merged.knit.md --to html4 --from markdown+autolink_bare_uris+tex_math_single_backslash --output /mnt/d/RNAseqAuto/results/dn_vs_wt_merged.html --lua-filter /home/quentin/R/x86_64-pc-linux-gnu-library/4.5/rmarkdown/rmarkdown/lua/pagebreak.lua --lua-filter /home/quentin/R/x86_64-pc-linux-gnu-library/4.5/rmarkdown/rmarkdown/lua/latex-div.lua --lua-filter /home/quentin/R/x86_64-pc-linux-gnu-library/4.5/rmarkdown/rmarkdown/lua/table-classes.lua --embed-resources --standalone --variable bs3=TRUE --section-divs --table-of-contents --toc-depth 3 --variable toc_float=1 --variable toc_selectors=h1,h2,h3 --variable toc_collapsed=1 --variable toc_smooth_scroll=1 --variable toc_print=1 --template /home/quentin/R/x86_64-pc-linux-gnu-library/4.5/rmarkdown/rmd/h/default.html --highlight-style tango --number-sections --variable theme=united --css ../my_css.css --mathjax --variable 'mathjax-url=https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML' --include-in-header /tmp/RtmptoQqJo/rmarkdown-str9416643e3e5.html --variable code_folding=hide --variable code_menu=1 
+[WARNING] Deprecated: --highlight-style. Use --syntax-highlighting instead.
+
+Output created: results/dn_vs_wt_merged.html
+Warning message:
+ggrepel: 188 unlabeled data points (too many overlaps). Consider increasing max.overlaps 
