@@ -151,13 +151,34 @@ coldata <- left_join(coldata, info, by = c("condition3" = "Dreams"))
 
 ```{r DESeq2}
 
-print(params$design_formula)
+design_formula <- params$design_formula
+if (str_detect(design_formula, "\\bsex\\b")) {
+  sex_levels <- if ("sex" %in% colnames(coldata)) {
+    length(unique(na.omit(coldata$sex)))
+  } else {
+    0
+  }
+  if (sex_levels < 2) {
+    design_formula <- str_replace_all(
+      design_formula,
+      "\\s*\\+\\s*sex\\b|\\bsex\\s*\\+\\s*",
+      " "
+    )
+    design_formula <- str_replace_all(design_formula, "\\s+", " ")
+    design_formula <- str_replace(design_formula, "\\+\\s*$", "")
+    design_formula <- str_replace(design_formula, "~\\s*\\+", "~ ")
+    if (str_trim(design_formula) %in% c("~", "")) {
+      design_formula <- "~ condition2"
+    }
+  }
+}
 
+print(design_formula)
 
 dds <- DESeqDataSetFromMatrix(
   countData = expr3,
   colData = coldata,
-  design = as.formula(params$design_formula)
+  design = as.formula(design_formula)
 )
 
 if (params$merge_replicates) {
