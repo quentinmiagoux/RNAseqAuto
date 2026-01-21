@@ -195,10 +195,10 @@ res <- results(
 )
 res <- lfcShrink(
   dds,
-  contrast = c("condition2", group_a, group_b),
-  res = res,
+  coef = paste("condition2", group_a, group_b, sep="_"),
   type = "apeglm"
 )
+
 rld <- vst(dds, blind = TRUE)
 
 finalDE_padj05 <- res %>%
