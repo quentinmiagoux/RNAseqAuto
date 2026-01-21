@@ -20,7 +20,8 @@ params:
   group_b: ""
   expr_xlsx: ""
   coldata_xlsx: ""
-  merge_replicates: false
+  merge_replicates:
+  lfc_threshold:
   design_formula: ""
 editor_options:
   chunk_output_type: console
@@ -150,7 +151,6 @@ coldata <- left_join(coldata, info, by = c("condition3" = "Dreams"))
 ```
 
 ```{r DESeq2}
-dir.create("log", showWarnings = FALSE, recursive = TRUE)
 
 design_formula <- params$design_formula
 if (str_detect(design_formula, "\\bsex\\b")) {
@@ -182,22 +182,23 @@ dds <- DESeqDataSetFromMatrix(
   design = as.formula(design_formula)
 )
 
-sink("log/deseq2_debug.txt")
-cat("### DESIGN FORMULA\n"); print(design_formula)
-cat("### DESIGN\n"); print(design(dds))
-cat("\n### condition2 class\n"); print(class(colData(dds)$condition2))
-cat("\n### condition2 table\n"); print(table(colData(dds)$condition2, useNA="ifany"))
-cat("\n### condition2 levels\n"); print(levels(factor(colData(dds)$condition2)))
-cat("\n### group_a / group_b\n"); print(group_a); print(group_b)
-sink()
-
 if (params$merge_replicates) {
   dds <- collapseReplicates(dds, dds$condition3, dds$samples)
 }
 
 dds <- dds[rowSums(counts(dds)) > 10, ]
 dds <- DESeq(dds)
-res <- results(dds, contrast = c("condition2", group_a, group_b))
+res <- results(
+  dds,
+  contrast = c("condition2", group_a, group_b),
+  lfcThreshold = params$lfc_threshold
+)
+res <- lfcShrink(
+  dds,
+  contrast = c("condition2", group_a, group_b),
+  res = res,
+  type = "apeglm"
+)
 rld <- vst(dds, blind = TRUE)
 
 finalDE_padj05 <- res %>%
@@ -299,11 +300,10 @@ pheatmap(
 )
 ```
 
-
 # DEA {.tabset .tabset-fade}
 ## DEGs
 
-```{r DEA}
+```{r}
 finalDE_VP <- finalDE
 keyvals <- ifelse(
     finalDE_VP$log2FoldChange < -log2(2) & finalDE_VP$padj < .05 & finalDE_VP$baseMean > 20, 'royalblue',
@@ -393,7 +393,7 @@ finalDE %>%
 
 ##### Table
 
-```{r gocc}
+```{r goccup}
 gocc_up <- enrichGO(
   gene = gene.df_up,
   universe = univ.gene.df$ENTREZID,

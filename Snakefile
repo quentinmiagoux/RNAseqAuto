@@ -12,6 +12,9 @@ def abs_path(p):
 def r_escape(s):
     return (s or "").replace("\\", "\\\\").replace('"', '\\"')
 
+def r_bool(value):
+    return "TRUE" if value else "FALSE"
+
 COMPARISON_FIELDS = {"comparison", "group_a", "group_b", "rmd"}
 
 def load_comparisons(path):
@@ -47,6 +50,8 @@ rule render_rmd:
         design_formula=lambda wc: r_escape(
             config.get("design_formula", "~ condition2")
         ),
+        merge_replicates=lambda wc: r_bool(config.get("merge_replicates", False)),
+        lfc_threshold=lambda wc: config.get("lfc_threshold", 0.0),
     shell:
         r"""
         mkdir -p results
@@ -59,6 +64,8 @@ rule render_rmd:
             group_b=\"{params.group_b}\",
             comparison=\"{wildcards.comparison}\",
             design_formula=\"{params.design_formula}\",
+            merge_replicates={params.merge_replicates},
+            lfc_threshold={params.lfc_threshold},
             expr_xlsx=\"{input.expr_xlsx}\",
             coldata_xlsx=\"{input.coldata_xlsx}\"
           )
