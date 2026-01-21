@@ -151,6 +151,7 @@ coldata <- left_join(coldata, info, by = c("condition3" = "Dreams"))
 ```
 
 ```{r DESeq2}
+cat("expr_xlsx: ", params$lfc_threshold, "\n")
 
 design_formula <- params$design_formula
 if (str_detect(design_formula, "\\bsex\\b")) {
@@ -187,15 +188,21 @@ if (params$merge_replicates) {
 }
 
 dds <- dds[rowSums(counts(dds)) > 10, ]
+dds$condition2 <- relevel(dds$condition2, ref = group_b)
 dds <- DESeq(dds)
+
+coef_name <- paste0("condition2_", group_a, "_vs_", group_b)
 res <- results(
   dds,
   contrast = c("condition2", group_a, group_b),
   lfcThreshold = params$lfc_threshold
 )
+
+
 res <- lfcShrink(
   dds,
-  coef = paste("condition2", group_a, group_b, sep="_"),
+  coef = coef_name,
+  res = res,
   type = "apeglm"
 )
 
@@ -203,11 +210,11 @@ rld <- vst(dds, blind = TRUE)
 
 finalDE_padj05 <- res %>%
   data.frame() %>%
-  dplyr::filter(abs(log2FoldChange) > log2(2), padj < 0.05, baseMean > 20) %>%
+  dplyr::filter(abs(log2FoldChange) > log2(2), padj < 0.05, baseMean > 50, lfcSE < 1) %>%
   rownames_to_column(var = "symbol")
 finalDE <- res %>%
   data.frame() %>%
-  dplyr::filter(baseMean > 20) %>%
+  dplyr::filter(baseMean > 50) %>%
   rownames_to_column(var = "symbol")
 ```
 
@@ -332,10 +339,7 @@ EnhancedVolcano(finalDE_VP,
                 legendIconSize = 4.0,
                 drawConnectors = TRUE,
                 widthConnectors = .5,
-                colConnectors = 'black')  +
-  scale_x_continuous(
-    breaks = seq(-7, 7,by=1), limits=c(-7,7)) +
-  scale_y_continuous(breaks= c(10,20,30), limits=c(0,30))
+                colConnectors = 'black')
 
 
 data <- counts(dds, normalized=T)
