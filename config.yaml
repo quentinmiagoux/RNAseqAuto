@@ -2,5 +2,5 @@ comparisons_file: comparisons.tsv
 design_formula: "~ Reprogrammation + Age + condition2" #"~ Reprogrammation + Age + sex + condition2"
 gene_expression_xlsx: "data/gene_expression.xlsx"
 coldata_xlsx: "data/RNAseq_proteomics_info.xlsx"
-merge_replicates: true
+merge_replicates: false
 lfc_threshold: 0.0
