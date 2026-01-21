@@ -30,10 +30,15 @@ def load_comparisons(path):
 
 comparisons = load_comparisons(config["comparisons_file"])
 comparisons_by_name = {row["comparison"]: row for row in comparisons}
+merge_replicates_enabled = bool(config.get("merge_replicates", False))
+comparison_suffix = "_merged" if merge_replicates_enabled else "_unmerged"
+active_comparisons = sorted(
+    name for name in comparisons_by_name.keys() if name.endswith(comparison_suffix)
+)
 
 rule all:
     input:
-        expand("results/{comparison}.html", comparison=sorted(comparisons_by_name.keys()))
+        expand("results/{comparison}.html", comparison=active_comparisons)
 
 rule render_rmd:
     input:
