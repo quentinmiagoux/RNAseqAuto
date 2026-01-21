@@ -59,11 +59,12 @@ rule render_rmd:
         lfc_threshold=lambda wc: config.get("lfc_threshold", 0.0),
     shell:
         r"""
-        mkdir -p results
+        mkdir -p results results/.knit/{wildcards.comparison}
         Rscript -e "rmarkdown::render(
           \"{input.rmd}\",
           output_file=\"{wildcards.comparison}.html\",
           output_dir=\"results\",
+          intermediates_dir=\"results/.knit/{wildcards.comparison}\",
           params=list(
             group_a=\"{params.group_a}\",
             group_b=\"{params.group_b}\",
