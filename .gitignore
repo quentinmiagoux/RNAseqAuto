@@ -47,3 +47,8 @@ results/
 
 .git
 .snakemake
+
+
+log/
+.md
+.html
