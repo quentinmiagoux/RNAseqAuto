@@ -16,6 +16,7 @@ params:
   expr_xlsx: ""
   coldata_xlsx: ""
   top_variable_genes: 500
+  samples_to_exclude:
 editor_options:
   chunk_output_type: console
 ---
@@ -130,8 +131,16 @@ ann <- coldata_df %>%
 
 rb_palette <- colorRampPalette(c("#2166AC", "white", "#B2182B"))(100)
 
-samples_to_exclude <- c("WT3", "DMD9")
-keep_samples <- !(coldata_df$condition_key %in% samples_to_exclude)
+samples_to_exclude <- params$samples_to_exclude
+if (is.null(samples_to_exclude)) {
+  samples_to_exclude <- character(0)
+}
+
+keep_samples <- if (length(samples_to_exclude) > 0) {
+  !(coldata_df$condition_key %in% samples_to_exclude)
+} else {
+  rep(TRUE, nrow(coldata_df))
+}
 rld_filtered <- rld[, keep_samples]
 ann_filtered <- ann[keep_samples, , drop = FALSE]
 
@@ -156,6 +165,19 @@ percent_var_top_filtered <- round(100 * attr(pca_top_filtered, "percentVar"))
 
 pca_top_filtered <- pca_top_filtered %>%
   mutate(samples = str_split(samples, "_", simplify = TRUE)[, 1])
+```
+
+```{r excluded-label, echo=FALSE}
+excluded_label <- if (length(samples_to_exclude) > 0) {
+  paste(samples_to_exclude, collapse = " and ")
+} else {
+  "no excluded samples"
+}
+filtered_section_label <- if (length(samples_to_exclude) > 0) {
+  paste("Without", excluded_label)
+} else {
+  "All samples (no exclusions)"
+}
 ```
 
 ## Gold standard QC metrics {.tabset .tabset-fade}
@@ -369,7 +391,7 @@ pheatmap(
 )
 ```
 
-## Without WT3 and DMD9 {.tabset .tabset-fade}
+## `r filtered_section_label` {.tabset .tabset-fade}
 
 ### All genes
 
@@ -381,7 +403,7 @@ ggplot(pca_all_filtered, aes(PC1, PC2, color = samples)) +
   scale_shape_manual(values = 16:22) +
   scale_color_viridis_d(option = "turbo") +
   labs(
-    title = "PCA (all genes, without WT3 and DMD9)",
+    title = paste("PCA (all genes,", filtered_section_label, ")"),
     x = paste0("PC1: ", percent_var_all_filtered[1], "% variance"),
     y = paste0("PC2: ", percent_var_all_filtered[2], "% variance")
   ) +
@@ -429,7 +451,7 @@ ggplot(pca_top_filtered, aes(PC1, PC2, color = samples)) +
   scale_shape_manual(values = 16:22) +
   scale_color_viridis_d(option = "turbo") +
   labs(
-    title = "PCA (top 500 variable genes, without WT3 and DMD9)",
+    title = paste("PCA (top 500 variable genes,", filtered_section_label, ")"),
     x = paste0("PC1: ", percent_var_top_filtered[1], "% variance"),
     y = paste0("PC2: ", percent_var_top_filtered[2], "% variance")
   ) +
@@ -455,6 +477,6 @@ pheatmap(
   clustering_distance_rows = "correlation",
   clustering_distance_cols = "correlation",
   color = rb_palette,
-  main = paste0("Heatmap (top ", top_n, " variable genes, without WT3 and DMD9)")
+  main = paste0("Heatmap (top ", top_n, " variable genes, ", filtered_section_label, ")")
 )
 ```
