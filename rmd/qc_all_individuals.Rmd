@@ -47,11 +47,13 @@ expr <- openxlsx::read.xlsx(params$expr_xlsx)
 
 counts <- expr %>%
   dplyr::select(gene_symbol, starts_with("read_count_")) %>%
-  mutate(across(-gene_symbol, as.numeric))
+  mutate(across(-gene_symbol, as.numeric)) %>%
+  mutate(across(-gene_symbol, round))
 
 rownames(counts) <- counts$gene_symbol
 counts <- counts[, -1, drop = FALSE]
-counts_mat <- as.matrix(counts)
+counts_mat <- round(as.matrix(counts))
+storage.mode(counts_mat) <- "integer"
 
 colnames(counts_mat) <- colnames(counts_mat) %>%
   str_remove("^read_count_") %>%
