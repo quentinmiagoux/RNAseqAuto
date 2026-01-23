@@ -184,17 +184,19 @@ ggplot(pca_all, aes(PC1, PC2, color = samples)) +
 #### Heatmap
 
 ```{r heatmap-all-genes}
-sample_dist <- dist(t(assay(vsd)))
-sample_dist_mat <- as.matrix(sample_dist)
+mat_all <- assay(vsd)
+mat_all <- mat_all - rowMeans(mat_all)
 
 pheatmap(
-  sample_dist_mat,
+  mat_all,
   annotation_col = ann,
-  annotation_row = ann,
+  show_rownames = FALSE,
   fontsize_col = 9,
-  fontsize_row = 9,
+  scale = "row",
+  clustering_distance_rows = "correlation",
+  clustering_distance_cols = "correlation",
   color = rb_palette,
-  main = "Sample distances (all genes)"
+  main = "Heatmap (all genes)"
 )
 ```
 
@@ -263,17 +265,19 @@ ggplot(pca_all_filtered, aes(PC1, PC2, color = samples)) +
 #### Heatmap
 
 ```{r heatmap-all-genes-no-wt3-dmd9}
-sample_dist_filtered <- dist(t(assay(vsd_filtered)))
-sample_dist_mat_filtered <- as.matrix(sample_dist_filtered)
+mat_all_filtered <- assay(vsd_filtered)
+mat_all_filtered <- mat_all_filtered - rowMeans(mat_all_filtered)
 
 pheatmap(
-  sample_dist_mat_filtered,
+  mat_all_filtered,
   annotation_col = ann_filtered,
-  annotation_row = ann_filtered,
+  show_rownames = FALSE,
   fontsize_col = 9,
-  fontsize_row = 9,
+  scale = "row",
+  clustering_distance_rows = "correlation",
+  clustering_distance_cols = "correlation",
   color = rb_palette,
-  main = "Sample distances (all genes, without WT3 and DMD9)"
+  main = "Heatmap (all genes, without WT3 and DMD9)"
 )
 ```
 
