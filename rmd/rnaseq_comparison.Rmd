@@ -262,34 +262,90 @@ names(gsea_gene) <- finalDE_entrez$ENTREZID
 data <- counts(dds, normalized = TRUE)
 
 data <- data %>% t() %>% as.data.frame() %>% rownames_to_column(var = "ID")
+
+ntop_all_genes <- nrow(assay(rld))
+
+pcaData_all <- plotPCA(
+  rld,
+  intgroup = c("samples", "condition2", "condition"),
+  returnData = TRUE,
+  ntop = ntop_all_genes
+)
+percentVar_all <- round(100 * attr(pcaData_all, "percentVar"))
+
+pcaData_all <- pcaData_all %>%
+  mutate(samples = str_split(samples, "_", simplify = TRUE) %>% .[, 1])
+
+pcaData_top <- plotPCA(
+  rld,
+  intgroup = c("samples", "condition2", "condition"),
+  returnData = TRUE,
+  ntop = 500
+)
+percentVar_top <- round(100 * attr(pcaData_top, "percentVar"))
+
+pcaData_top <- pcaData_top %>%
+  mutate(samples = str_split(samples, "_", simplify = TRUE) %>% .[, 1])
 ```
 
-## PCA
+## All genes {.tabset .tabset-fade}
 
-```{r PCA2}
-pcaData <- plotPCA(rld, intgroup = c("samples", "condition2", "condition"),
-                   returnData = TRUE, ntop = 300)
-percentVar <- round(100 * attr(pcaData, "percentVar"))
+### PCA
 
-pcaData <- pcaData %>% mutate(samples = str_split(samples, "_", simplify = TRUE) %>% .[, 1])
+```{r PCA-all-genes}
 
-ggplot(pcaData, aes(PC1, PC2, color = samples)) +
+ggplot(pcaData_all, aes(PC1, PC2, color = samples)) +
   geom_point(size = 5, alpha = 0.8) +
   scale_shape_manual(values = 16:22) +
   scale_color_viridis_d(option = "turbo") +
-  xlab(paste0("PC1: ", percentVar[1], "% variance")) +
-  ylab(paste0("PC2: ", percentVar[2], "% variance")) +
+  xlab(paste0("PC1: ", percentVar_all[1], "% variance")) +
+  ylab(paste0("PC2: ", percentVar_all[2], "% variance")) +
   coord_fixed(ratio = 4 / 3) +
   theme_bw()
 ```
 
-## Heatmap
+### Heatmap
 
-```{r pheatmap}
-mat <- assay(rld)
+```{r pheatmap-all-genes}
+mat_all <- assay(rld)
 ann <- as.data.frame(colData(dds))[, c("condition", "condition2", "condition3"), drop = FALSE]
 
 library(pheatmap)
+
+rb_palette_all <- colorRampPalette(c("#2166AC", "white", "#B2182B"))(100)
+
+pheatmap(
+  mat_all,
+  annotation_col = ann,
+  show_rownames = FALSE,
+  fontsize_col = 9,
+  scale = "row",
+  clustering_distance_rows = "correlation",
+  clustering_distance_cols = "correlation",
+  color = rb_palette_all,
+  main = "All genes (VST, row-scaled)"
+)
+```
+
+## Top 500 {.tabset .tabset-fade}
+
+### PCA
+
+```{r PCA-top-500}
+ggplot(pcaData_top, aes(PC1, PC2, color = samples)) +
+  geom_point(size = 5, alpha = 0.8) +
+  scale_shape_manual(values = 16:22) +
+  scale_color_viridis_d(option = "turbo") +
+  xlab(paste0("PC1: ", percentVar_top[1], "% variance")) +
+  ylab(paste0("PC2: ", percentVar_top[2], "% variance")) +
+  coord_fixed(ratio = 4 / 3) +
+  theme_bw()
+```
+
+### Heatmap
+
+```{r pheatmap-top-500}
+mat <- assay(rld)
 
 topVar <- head(order(rowVars(mat), decreasing = TRUE), 500)
 mat_top <- mat[topVar, ]
