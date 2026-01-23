@@ -3,4 +3,4 @@ design_formula: "~ Reprogrammation + sex + condition2" #"~ Reprogrammation + Age
 gene_expression_xlsx: "data/gene_expression.xlsx"
 coldata_xlsx: "data/RNAseq_proteomics_info.xlsx"
 merge_replicates: false
-lfc_threshold: 1
+lfc_threshold: .5

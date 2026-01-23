@@ -69,7 +69,6 @@ colnames(counts_mat) <- colnames(counts_mat) %>%
   str_remove("_")
 colnames(counts_mat) <- paste0(colnames(counts_mat), "_", rep(c(1, 2, 3)))
 
-counts_mat <- counts_mat[, !str_detect(colnames(counts_mat), "DMD9|WT3")]
 
 coldata <- tibble(samples = colnames(counts_mat)) %>%
   mutate(

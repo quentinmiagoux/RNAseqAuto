@@ -1,131 +1,161 @@
 
 
 processing file: rnaseq_comparison.Rmd
-1/120                   
-2/120 [setup]           
-3/120                   
-4/120 [packages]        
-5/120                   
-6/120 [functions]       
-7/120                   
-8/120 [transform-data]  
-9/120                   
-10/120 [DESeq2]          
-11/120                   
-12/120 [entrezid]        
-13/120                   
-14/120 [PCA]             
-15/120                   
-16/120 [PCA2]            
-17/120                   
-18/120 [pheatmap]        
-19/120                   
-20/120 [unnamed-chunk-1] 
-21/120                   
-22/120 [allgenes]        
-23/120                   
-24/120 [goccup]          
-25/120                   
-26/120 [dotplotgocc]     
-27/120                   
-28/120 [cnetplotgocc]    
-29/120                   
-30/120 [unnamed-chunk-2] 
-31/120                   
-32/120 [unnamed-chunk-3] 
-33/120                   
-34/120 [unnamed-chunk-4] 
-35/120                   
-36/120 [unnamed-chunk-5] 
-37/120                   
-38/120 [unnamed-chunk-6] 
-39/120                   
-40/120 [unnamed-chunk-7] 
-41/120                   
-42/120 [unnamed-chunk-8] 
-43/120                   
-44/120 [unnamed-chunk-9] 
-45/120                   
-46/120 [unnamed-chunk-10]
-47/120                   
-48/120 [unnamed-chunk-11]
-49/120                   
-50/120 [unnamed-chunk-12]
-51/120                   
-52/120 [unnamed-chunk-13]
-53/120                   
-54/120 [unnamed-chunk-14]
-55/120                   
-56/120 [unnamed-chunk-15]
-57/120                   
-58/120 [unnamed-chunk-16]
-59/120                   
-60/120 [unnamed-chunk-17]
-61/120                   
-62/120 [unnamed-chunk-18]
-63/120                   
-64/120 [unnamed-chunk-19]
-65/120                   
-66/120 [unnamed-chunk-20]
-67/120                   
-68/120 [unnamed-chunk-21]
-69/120                   
-70/120 [unnamed-chunk-22]
-71/120                   
-72/120 [unnamed-chunk-23]
-73/120                   
-74/120 [unnamed-chunk-24]
-75/120                   
-76/120 [unnamed-chunk-25]
-77/120                   
-78/120 [unnamed-chunk-26]
-79/120                   
-80/120 [unnamed-chunk-27]
-81/120                   
-82/120 [unnamed-chunk-28]
-83/120                   
-84/120 [unnamed-chunk-29]
-85/120                   
-86/120 [unnamed-chunk-30]
-87/120                   
-88/120 [unnamed-chunk-31]
-89/120                   
-90/120 [unnamed-chunk-32]
-91/120                   
-92/120 [unnamed-chunk-33]
-93/120                   
-94/120 [unnamed-chunk-34]
-95/120                   
-96/120 [unnamed-chunk-35]
-97/120                   
-98/120 [unnamed-chunk-36]
-99/120                   
-100/120 [unnamed-chunk-37]
-101/120                   
-102/120 [unnamed-chunk-38]
-103/120                   
-104/120 [unnamed-chunk-39]
-105/120                   
-106/120 [unnamed-chunk-40]
-107/120                   
-108/120 [unnamed-chunk-41]
-109/120                   
-110/120 [unnamed-chunk-42]
-111/120                   
-112/120 [unnamed-chunk-43]
-113/120                   
-114/120 [unnamed-chunk-44]
-115/120                   
-116/120 [unnamed-chunk-45]
-117/120                   
-118/120 [unnamed-chunk-46]
-119/120                   
-120/120 [unnamed-chunk-47]
+1/150                   
+2/150 [setup]           
+3/150                   
+4/150 [packages]        
+5/150                   
+6/150 [functions]       
+7/150                   
+8/150 [transform-data]  
+9/150                   
+10/150 [DESeq2]          
+11/150                   
+12/150 [entrezid]        
+13/150                   
+14/150 [PCA]             
+15/150                   
+16/150 [PCA2]            
+17/150                   
+18/150 [pheatmap]        
+19/150                   
+20/150 [unnamed-chunk-1] 
+21/150                   
+22/150 [allgenes]        
+23/150                   
+24/150 [goccup]          
+25/150                   
+26/150 [dotplotgocc]     
+27/150                   
+28/150 [cnetplotgocc]    
+29/150                   
+30/150 [unnamed-chunk-2] 
+31/150                   
+32/150 [unnamed-chunk-3] 
+33/150                   
+34/150 [unnamed-chunk-4] 
+35/150                   
+36/150 [unnamed-chunk-5] 
+37/150                   
+38/150 [unnamed-chunk-6] 
+39/150                   
+40/150 [unnamed-chunk-7] 
+41/150                   
+42/150 [unnamed-chunk-8] 
+43/150                   
+44/150 [unnamed-chunk-9] 
+45/150                   
+46/150 [unnamed-chunk-10]
+47/150                   
+48/150 [unnamed-chunk-11]
+49/150                   
+50/150 [unnamed-chunk-12]
+51/150                   
+52/150 [unnamed-chunk-13]
+53/150                   
+54/150 [unnamed-chunk-14]
+55/150                   
+56/150 [unnamed-chunk-15]
+57/150                   
+58/150 [unnamed-chunk-16]
+59/150                   
+60/150 [unnamed-chunk-17]
+61/150                   
+62/150 [unnamed-chunk-18]
+63/150                   
+64/150 [unnamed-chunk-19]
+65/150                   
+66/150 [unnamed-chunk-20]
+67/150                   
+68/150 [unnamed-chunk-21]
+69/150                   
+70/150 [unnamed-chunk-22]
+71/150                   
+72/150 [unnamed-chunk-23]
+73/150                   
+74/150 [unnamed-chunk-24]
+75/150                   
+76/150 [unnamed-chunk-25]
+77/150                   
+78/150 [unnamed-chunk-26]
+79/150                   
+80/150 [unnamed-chunk-27]
+81/150                   
+82/150 [unnamed-chunk-28]
+83/150                   
+84/150 [unnamed-chunk-29]
+85/150                   
+86/150 [unnamed-chunk-30]
+87/150                   
+88/150 [unnamed-chunk-31]
+89/150                   
+90/150 [unnamed-chunk-32]
+91/150                   
+92/150 [unnamed-chunk-33]
+93/150                   
+94/150 [unnamed-chunk-34]
+95/150                   
+96/150 [unnamed-chunk-35]
+97/150                   
+98/150 [unnamed-chunk-36]
+99/150                   
+100/150 [unnamed-chunk-37]
+101/150                   
+102/150 [unnamed-chunk-38]
+103/150                   
+104/150 [unnamed-chunk-39]
+105/150                   
+106/150 [unnamed-chunk-40]
+107/150                   
+108/150 [unnamed-chunk-41]
+109/150                   
+110/150 [unnamed-chunk-42]
+111/150                   
+112/150 [unnamed-chunk-43]
+113/150                   
+114/150 [unnamed-chunk-44]
+115/150                   
+116/150 [unnamed-chunk-45]
+117/150                   
+118/150 [unnamed-chunk-46]
+119/150                   
+120/150 [unnamed-chunk-47]
+121/150                   
+122/150 [unnamed-chunk-48]
+123/150                   
+124/150 [unnamed-chunk-49]
+125/150                   
+126/150 [unnamed-chunk-50]
+127/150                   
+128/150 [unnamed-chunk-51]
+129/150                   
+130/150 [unnamed-chunk-52]
+131/150                   
+132/150 [unnamed-chunk-53]
+133/150                   
+134/150 [unnamed-chunk-54]
+135/150                   
+136/150 [unnamed-chunk-55]
+137/150                   
+138/150 [unnamed-chunk-56]
+139/150                   
+140/150 [unnamed-chunk-57]
+141/150                   
+142/150 [unnamed-chunk-58]
+143/150                   
+144/150 [unnamed-chunk-59]
+145/150                   
+146/150 [unnamed-chunk-60]
+147/150                   
+148/150 [unnamed-chunk-61]
+149/150                   
+150/150 [unnamed-chunk-62]
 output file: rnaseq_comparison.knit.md
 
-/home/quentin/miniconda3/envs/snakemake/bin/pandoc +RTS -K512m -RTS rnaseq_comparison.knit.md --to html4 --from markdown+autolink_bare_uris+tex_math_single_backslash --output /mnt/d/RNAseqAuto/results/lmna_vs_wt_unmerged.html --lua-filter /home/quentin/R/x86_64-pc-linux-gnu-library/4.5/rmarkdown/rmarkdown/lua/pagebreak.lua --lua-filter /home/quentin/R/x86_64-pc-linux-gnu-library/4.5/rmarkdown/rmarkdown/lua/latex-div.lua --lua-filter /home/quentin/R/x86_64-pc-linux-gnu-library/4.5/rmarkdown/rmarkdown/lua/table-classes.lua --embed-resources --standalone --variable bs3=TRUE --section-divs --table-of-contents --toc-depth 3 --variable toc_float=1 --variable toc_selectors=h1,h2,h3 --variable toc_collapsed=1 --variable toc_smooth_scroll=1 --variable toc_print=1 --template /home/quentin/R/x86_64-pc-linux-gnu-library/4.5/rmarkdown/rmd/h/default.html --highlight-style tango --number-sections --variable theme=united --css ../my_css.css --mathjax --variable 'mathjax-url=https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML' --include-in-header /tmp/Rtmp0mTf1J/rmarkdown-str24858e45671.html --variable code_folding=hide --variable code_menu=1 
+/home/quentin/miniconda3/envs/snakemake/bin/pandoc +RTS -K512m -RTS rnaseq_comparison.knit.md --to html4 --from markdown+autolink_bare_uris+tex_math_single_backslash --output /mnt/d/RNAseqAuto/results/lmna_vs_wt_unmerged.html --lua-filter /home/quentin/R/x86_64-pc-linux-gnu-library/4.5/rmarkdown/rmarkdown/lua/pagebreak.lua --lua-filter /home/quentin/R/x86_64-pc-linux-gnu-library/4.5/rmarkdown/rmarkdown/lua/latex-div.lua --lua-filter /home/quentin/R/x86_64-pc-linux-gnu-library/4.5/rmarkdown/rmarkdown/lua/table-classes.lua --embed-resources --standalone --variable bs3=TRUE --section-divs --table-of-contents --toc-depth 3 --variable toc_float=1 --variable toc_selectors=h1,h2,h3 --variable toc_collapsed=1 --variable toc_smooth_scroll=1 --variable toc_print=1 --template /home/quentin/R/x86_64-pc-linux-gnu-library/4.5/rmarkdown/rmd/h/default.html --highlight-style tango --number-sections --variable theme=united --css ../my_css.css --mathjax --variable 'mathjax-url=https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML' --include-in-header /tmp/Rtmp4Ugacr/rmarkdown-str15a34c901388.html --variable code_folding=hide --variable code_menu=1 
 [WARNING] Deprecated: --highlight-style. Use --syntax-highlighting instead.
 
 Output created: results/lmna_vs_wt_unmerged.html
 Warning message:
-ggrepel: 45 unlabeled data points (too many overlaps). Consider increasing max.overlaps 
+ggrepel: 214 unlabeled data points (too many overlaps). Consider increasing max.overlaps 
