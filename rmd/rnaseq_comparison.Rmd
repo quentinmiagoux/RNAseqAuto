@@ -129,26 +129,38 @@ colnames(expr3) <- colnames(expr3) %>%
   str_remove("_")
 colnames(expr3) <- paste0(colnames(expr3), "_", rep(c(1, 2, 3)))
 
-expr3 <- expr3[, !str_detect(colnames(expr3), "DMD9|WT3")]
-
-coldata <- data.frame(samples = colnames(expr3))
-coldata$condition <- sub("[0-9].*$", "", coldata$samples)
-coldata$condition3 <- str_split(coldata$samples, "_", simplify = TRUE)[, 1]
-
 group_a <- canonicalize_group(params$group_a)
 group_b <- canonicalize_group(params$group_b)
 
-coldata$condition2 <- case_when(
-  select_group(group_a, coldata$condition) ~ group_a,
-  select_group(group_b, coldata$condition) ~ group_b,
-  TRUE ~ NA_character_
-)
-coldata <- coldata %>% filter(!is.na(condition2))
-coldata$condition2 <- factor(coldata$condition2, levels = c(group_a, group_b))
-expr3 <- expr3[, coldata$samples]
-
 info <- openxlsx::read.xlsx(params$coldata_xlsx)
-coldata <- left_join(coldata, info, by = c("condition3" = "Dreams"))
+expr3_all <- expr3
+expr3_filtered <- expr3[, !str_detect(colnames(expr3), "DMD9|WT3")]
+
+build_coldata <- function(expr_matrix, group_a, group_b, info) {
+  coldata <- data.frame(samples = colnames(expr_matrix))
+  coldata$condition <- sub("[0-9].*$", "", coldata$samples)
+  coldata$condition3 <- str_split(coldata$samples, "_", simplify = TRUE)[, 1]
+
+  coldata$condition2 <- case_when(
+    select_group(group_a, coldata$condition) ~ group_a,
+    select_group(group_b, coldata$condition) ~ group_b,
+    TRUE ~ NA_character_
+  )
+  coldata <- coldata %>% filter(!is.na(condition2))
+  coldata$condition2 <- factor(coldata$condition2, levels = c(group_a, group_b))
+  expr_matrix <- expr_matrix[, coldata$samples]
+  coldata <- left_join(coldata, info, by = c("condition3" = "Dreams"))
+
+  list(expr = expr_matrix, coldata = coldata)
+}
+
+filtered_data <- build_coldata(expr3_filtered, group_a, group_b, info)
+expr3 <- filtered_data$expr
+coldata <- filtered_data$coldata
+
+full_data <- build_coldata(expr3_all, group_a, group_b, info)
+expr3_all <- full_data$expr
+coldata_all <- full_data$coldata
 ```
 
 ```{r DESeq2}
@@ -177,6 +189,20 @@ if (str_detect(design_formula, "\\bsex\\b")) {
 }
 
 print(design_formula)
+
+dds_all <- DESeqDataSetFromMatrix(
+  countData = expr3_all,
+  colData = coldata_all,
+  design = as.formula(design_formula)
+)
+
+if (params$merge_replicates) {
+  dds_all <- collapseReplicates(dds_all, dds_all$condition3, dds_all$samples)
+}
+
+dds_all <- dds_all[rowSums(counts(dds_all)) > 10, ]
+dds_all$condition2 <- relevel(dds_all$condition2, ref = group_b)
+dds_all <- estimateSizeFactors(dds_all)
 
 dds <- DESeqDataSetFromMatrix(
   countData = expr3,
@@ -207,6 +233,7 @@ res <- lfcShrink(
   type = "apeglm"
 )
 
+rld_all <- vst(dds_all, blind = TRUE)
 rld <- vst(dds, blind = TRUE)
 
 finalDE_padj05 <- res %>%
@@ -263,43 +290,80 @@ data <- counts(dds, normalized = TRUE)
 
 data <- data %>% t() %>% as.data.frame() %>% rownames_to_column(var = "ID")
 
-ntop_all_genes <- nrow(assay(rld))
+ntop_all_genes_without <- nrow(assay(rld))
+ntop_all_genes_with <- nrow(assay(rld_all))
 
-pcaData_all <- plotPCA(
+pcaData_all_without <- plotPCA(
   rld,
   intgroup = c("samples", "condition2", "condition"),
   returnData = TRUE,
-  ntop = ntop_all_genes
+  ntop = ntop_all_genes_without
 )
-percentVar_all <- round(100 * attr(pcaData_all, "percentVar"))
+percentVar_all_without <- round(100 * attr(pcaData_all_without, "percentVar"))
 
-pcaData_all <- pcaData_all %>%
+pcaData_all_without <- pcaData_all_without %>%
   mutate(samples = str_split(samples, "_", simplify = TRUE) %>% .[, 1])
 
-pcaData_top <- plotPCA(
+pcaData_all_with <- plotPCA(
+  rld_all,
+  intgroup = c("samples", "condition2", "condition"),
+  returnData = TRUE,
+  ntop = ntop_all_genes_with
+)
+percentVar_all_with <- round(100 * attr(pcaData_all_with, "percentVar"))
+
+pcaData_all_with <- pcaData_all_with %>%
+  mutate(samples = str_split(samples, "_", simplify = TRUE) %>% .[, 1])
+
+pcaData_top_without <- plotPCA(
   rld,
   intgroup = c("samples", "condition2", "condition"),
   returnData = TRUE,
   ntop = 500
 )
-percentVar_top <- round(100 * attr(pcaData_top, "percentVar"))
+percentVar_top_without <- round(100 * attr(pcaData_top_without, "percentVar"))
 
-pcaData_top <- pcaData_top %>%
+pcaData_top_without <- pcaData_top_without %>%
+  mutate(samples = str_split(samples, "_", simplify = TRUE) %>% .[, 1])
+
+pcaData_top_with <- plotPCA(
+  rld_all,
+  intgroup = c("samples", "condition2", "condition"),
+  returnData = TRUE,
+  ntop = 500
+)
+percentVar_top_with <- round(100 * attr(pcaData_top_with, "percentVar"))
+
+pcaData_top_with <- pcaData_top_with %>%
   mutate(samples = str_split(samples, "_", simplify = TRUE) %>% .[, 1])
 ```
 
 ## All genes {.tabset .tabset-fade}
 
-### PCA
+### Sans WT3/DMD9
 
-```{r PCA-all-genes}
+```{r PCA-all-genes-without}
 
-ggplot(pcaData_all, aes(PC1, PC2, color = samples)) +
+ggplot(pcaData_all_without, aes(PC1, PC2, color = samples)) +
   geom_point(size = 5, alpha = 0.8) +
   scale_shape_manual(values = 16:22) +
   scale_color_viridis_d(option = "turbo") +
-  xlab(paste0("PC1: ", percentVar_all[1], "% variance")) +
-  ylab(paste0("PC2: ", percentVar_all[2], "% variance")) +
+  xlab(paste0("PC1: ", percentVar_all_without[1], "% variance")) +
+  ylab(paste0("PC2: ", percentVar_all_without[2], "% variance")) +
+  coord_fixed(ratio = 4 / 3) +
+  theme_bw()
+```
+
+### Avec WT3/DMD9
+
+```{r PCA-all-genes-with}
+
+ggplot(pcaData_all_with, aes(PC1, PC2, color = samples)) +
+  geom_point(size = 5, alpha = 0.8) +
+  scale_shape_manual(values = 16:22) +
+  scale_color_viridis_d(option = "turbo") +
+  xlab(paste0("PC1: ", percentVar_all_with[1], "% variance")) +
+  ylab(paste0("PC2: ", percentVar_all_with[2], "% variance")) +
   coord_fixed(ratio = 4 / 3) +
   theme_bw()
 ```
@@ -329,15 +393,28 @@ pheatmap(
 
 ## Top 500 {.tabset .tabset-fade}
 
-### PCA
+### Sans WT3/DMD9
 
-```{r PCA-top-500}
-ggplot(pcaData_top, aes(PC1, PC2, color = samples)) +
+```{r PCA-top-500-without}
+ggplot(pcaData_top_without, aes(PC1, PC2, color = samples)) +
   geom_point(size = 5, alpha = 0.8) +
   scale_shape_manual(values = 16:22) +
   scale_color_viridis_d(option = "turbo") +
-  xlab(paste0("PC1: ", percentVar_top[1], "% variance")) +
-  ylab(paste0("PC2: ", percentVar_top[2], "% variance")) +
+  xlab(paste0("PC1: ", percentVar_top_without[1], "% variance")) +
+  ylab(paste0("PC2: ", percentVar_top_without[2], "% variance")) +
+  coord_fixed(ratio = 4 / 3) +
+  theme_bw()
+```
+
+### Avec WT3/DMD9
+
+```{r PCA-top-500-with}
+ggplot(pcaData_top_with, aes(PC1, PC2, color = samples)) +
+  geom_point(size = 5, alpha = 0.8) +
+  scale_shape_manual(values = 16:22) +
+  scale_color_viridis_d(option = "turbo") +
+  xlab(paste0("PC1: ", percentVar_top_with[1], "% variance")) +
+  ylab(paste0("PC2: ", percentVar_top_with[2], "% variance")) +
   coord_fixed(ratio = 4 / 3) +
   theme_bw()
 ```
