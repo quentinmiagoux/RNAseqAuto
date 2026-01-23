@@ -4,3 +4,6 @@ gene_expression_xlsx: "data/gene_expression.xlsx"
 coldata_xlsx: "data/RNAseq_proteomics_info.xlsx"
 merge_replicates: false
 lfc_threshold: .5
+samples_to_exclude:
+  - WT3
+  - DMD9
