@@ -23,6 +23,7 @@ params:
   merge_replicates:
   lfc_threshold:
   design_formula: ""
+  samples_to_exclude:
 editor_options:
   chunk_output_type: console
 ---
@@ -134,7 +135,13 @@ group_b <- canonicalize_group(params$group_b)
 
 info <- openxlsx::read.xlsx(params$coldata_xlsx)
 expr3_all <- expr3
-expr3_filtered <- expr3[, !str_detect(colnames(expr3), "DMD9|WT3")]
+samples_to_exclude <- params$samples_to_exclude
+if (is.null(samples_to_exclude) || length(samples_to_exclude) == 0) {
+  expr3_filtered <- expr3
+} else {
+  sample_keys <- str_split(colnames(expr3), "_", simplify = TRUE)[, 1]
+  expr3_filtered <- expr3[, !(sample_keys %in% samples_to_exclude)]
+}
 
 build_coldata <- function(expr_matrix, group_a, group_b, info) {
   coldata <- data.frame(samples = colnames(expr_matrix))

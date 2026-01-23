@@ -15,6 +15,19 @@ def r_escape(s):
 def r_bool(value):
     return "TRUE" if value else "FALSE"
 
+def normalize_list(value):
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return [item.strip() for item in value.split(",") if item.strip()]
+    return [str(item).strip() for item in value if str(item).strip()]
+
+def r_str_vector(values):
+    if not values:
+        return "character(0)"
+    escaped = [f"\\\"{r_escape(item)}\\\"" for item in values]
+    return f"c({', '.join(escaped)})"
+
 COMPARISON_FIELDS = {"comparison", "group_a", "group_b", "rmd"}
 
 def load_comparisons(path):
@@ -35,6 +48,7 @@ comparison_suffix = "_merged" if merge_replicates_enabled else "_unmerged"
 active_comparisons = sorted(
     name for name in comparisons_by_name.keys() if name.endswith(comparison_suffix)
 )
+samples_to_exclude = normalize_list(config.get("samples_to_exclude", []))
 
 rule all:
     input:
@@ -58,6 +72,7 @@ rule render_rmd:
         ),
         merge_replicates=lambda wc: r_bool(config.get("merge_replicates", False)),
         lfc_threshold=lambda wc: config.get("lfc_threshold", 0.0),
+        samples_to_exclude=lambda wc: r_str_vector(samples_to_exclude),
     shell:
         r"""
         mkdir -p results results/.knit/{wildcards.comparison}
@@ -73,6 +88,7 @@ rule render_rmd:
             design_formula=\"{params.design_formula}\",
             merge_replicates={params.merge_replicates},
             lfc_threshold={params.lfc_threshold},
+            samples_to_exclude={params.samples_to_exclude},
             expr_xlsx=\"{input.expr_xlsx}\",
             coldata_xlsx=\"{input.coldata_xlsx}\"
           )
@@ -81,7 +97,7 @@ rule render_rmd:
 
 rule render_qc_all_individuals:
     input:
-        rmd=abs_path("rmd/qc_all_individuals.Rmd"),
+        rmd=abs_path("rmd/RNAseq_QC_All_individuals_gold_standard.Rmd"),
         expr_xlsx=abs_path(config["gene_expression_xlsx"]),
         coldata_xlsx=abs_path(config["coldata_xlsx"]),
     output:
@@ -90,6 +106,7 @@ rule render_qc_all_individuals:
         "logs/render_rmd/qc_all_individuals.log"
     params:
         top_variable_genes=lambda wc: config.get("top_variable_genes", 500),
+        samples_to_exclude=lambda wc: r_str_vector(samples_to_exclude),
     shell:
         r"""
         mkdir -p results results/.knit/qc_all_individuals
@@ -101,7 +118,8 @@ rule render_qc_all_individuals:
           params=list(
             expr_xlsx=\"{input.expr_xlsx}\",
             coldata_xlsx=\"{input.coldata_xlsx}\",
-            top_variable_genes={params.top_variable_genes}
+            top_variable_genes={params.top_variable_genes},
+            samples_to_exclude={params.samples_to_exclude}
           )
         )" &> "{log}"
         """
