@@ -38,7 +38,8 @@ active_comparisons = sorted(
 
 rule all:
     input:
-        expand("results/{comparison}.html", comparison=active_comparisons)
+        expand("results/{comparison}.html", comparison=active_comparisons),
+        "results/qc_all_individuals.html"
 
 rule render_rmd:
     input:
@@ -74,6 +75,33 @@ rule render_rmd:
             lfc_threshold={params.lfc_threshold},
             expr_xlsx=\"{input.expr_xlsx}\",
             coldata_xlsx=\"{input.coldata_xlsx}\"
+          )
+        )" &> "{log}"
+        """
+
+rule render_qc_all_individuals:
+    input:
+        rmd=abs_path("rmd/qc_all_individuals.Rmd"),
+        expr_xlsx=abs_path(config["gene_expression_xlsx"]),
+        coldata_xlsx=abs_path(config["coldata_xlsx"]),
+    output:
+        "results/qc_all_individuals.html"
+    log:
+        "logs/render_rmd/qc_all_individuals.log"
+    params:
+        top_variable_genes=lambda wc: config.get("top_variable_genes", 500),
+    shell:
+        r"""
+        mkdir -p results results/.knit/qc_all_individuals
+        Rscript -e "rmarkdown::render(
+          \"{input.rmd}\",
+          output_file=\"qc_all_individuals.html\",
+          output_dir=\"results\",
+          intermediates_dir=\"results/.knit/qc_all_individuals\",
+          params=list(
+            expr_xlsx=\"{input.expr_xlsx}\",
+            coldata_xlsx=\"{input.coldata_xlsx}\",
+            top_variable_genes={params.top_variable_genes}
           )
         )" &> "{log}"
         """
