@@ -57,11 +57,23 @@ storage.mode(counts_mat) <- "integer"
 
 colnames(counts_mat) <- colnames(counts_mat) %>%
   str_remove("^read_count_") %>%
-  str_replace("^DNM2_", "DNMII_")
+  str_replace("^DNM2_", "DNMII")
+
+counts_mat <- counts_mat[, str_detect(colnames(counts_mat), "^(DMD|WT|DN|LMNA|GSDII|DNMII)")]
+
+ord <- order(as.integer(sub("^.*_", "", colnames(counts_mat))))
+counts_mat <- counts_mat[, ord]
+
+colnames(counts_mat) <- colnames(counts_mat) %>%
+  sub("[0-9]+_", "_", .) %>%
+  str_remove("_")
+colnames(counts_mat) <- paste0(colnames(counts_mat), "_", rep(c(1, 2, 3)))
+
+counts_mat <- counts_mat[, !str_detect(colnames(counts_mat), "DMD9|WT3")]
 
 coldata <- tibble(samples = colnames(counts_mat)) %>%
   mutate(
-    condition = str_replace(samples, "[_-]?[0-9]+$", ""),
+    condition = sub("[0-9].*$", "", samples),
     condition_key = str_split(samples, "_", simplify = TRUE)[, 1]
   )
 
