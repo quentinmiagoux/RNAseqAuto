@@ -25,7 +25,7 @@ def normalize_list(value):
 def r_str_vector(values):
     if not values:
         return "character(0)"
-    escaped = [f"\"{r_escape(item)}\"" for item in values]
+    escaped = [f"\\\"{r_escape(item)}\\\"" for item in values]
     return f"c({', '.join(escaped)})"
 
 COMPARISON_FIELDS = {"comparison", "group_a", "group_b", "rmd"}
