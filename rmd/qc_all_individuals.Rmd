@@ -102,38 +102,62 @@ dds <- dds[rowSums(counts(dds)) > 10, ]
 vsd <- vst(dds, blind = TRUE)
 ```
 
-# PCA - all genes
+# QC {.tabset .tabset-fade}
 
-```{r pca-all-genes}
-pca_all <- plotPCA(vsd, intgroup = c("samples", "condition"), returnData = TRUE)
-percent_var <- round(100 * attr(pca_all, "percentVar"))
+```{r pca-setup}
+ntop_all_genes <- nrow(assay(vsd))
+
+pca_all <- plotPCA(
+  vsd,
+  intgroup = c("samples", "condition"),
+  returnData = TRUE,
+  ntop = ntop_all_genes
+)
+percent_var_all <- round(100 * attr(pca_all, "percentVar"))
 
 pca_all <- pca_all %>%
   mutate(samples = str_split(samples, "_", simplify = TRUE)[, 1])
 
+pca_top <- plotPCA(
+  vsd,
+  intgroup = c("samples", "condition"),
+  returnData = TRUE,
+  ntop = 500
+)
+percent_var_top <- round(100 * attr(pca_top, "percentVar"))
+
+pca_top <- pca_top %>%
+  mutate(samples = str_split(samples, "_", simplify = TRUE)[, 1])
+
+ann <- coldata_df %>%
+  select(any_of(c("condition", "condition_key")))
+
+rb_palette <- colorRampPalette(c("#2166AC", "white", "#B2182B"))(100)
+```
+
+## All genes {.tabset .tabset-fade}
+
+### PCA
+
+```{r pca-all-genes}
 ggplot(pca_all, aes(PC1, PC2, color = samples)) +
   geom_point(size = 5, alpha = 0.8) +
   scale_shape_manual(values = 16:22) +
   scale_color_viridis_d(option = "turbo") +
   labs(
     title = "PCA (all genes)",
-    x = paste0("PC1: ", percent_var[1], "% variance"),
-    y = paste0("PC2: ", percent_var[2], "% variance")
+    x = paste0("PC1: ", percent_var_all[1], "% variance"),
+    y = paste0("PC2: ", percent_var_all[2], "% variance")
   ) +
   coord_fixed(ratio = 4 / 3) +
   theme_bw()
 ```
 
-# Heatmap - sample distances (all genes)
+### Heatmap
 
 ```{r heatmap-sample-distance}
 sample_dist <- dist(t(assay(vsd)))
 sample_dist_mat <- as.matrix(sample_dist)
-
-ann <- coldata_df %>%
-  select(any_of(c("condition", "condition_key")))
-
-rb_palette <- colorRampPalette(c("#2166AC", "white", "#B2182B"))(100)
 
 pheatmap(
   sample_dist_mat,
@@ -146,32 +170,17 @@ pheatmap(
 )
 ```
 
-# Select most variable genes
+## Top 500 {.tabset .tabset-fade}
 
-```{r select-top-genes}
-top_n <- params$top_variable_genes
-vars <- matrixStats::rowVars(assay(vsd))
-top_genes <- order(vars, decreasing = TRUE)[seq_len(min(top_n, length(vars)))]
-vsd_top <- vsd[top_genes, ]
-```
-
-# PCA - top variable genes
+### PCA
 
 ```{r pca-top-genes}
-vsd_top_mat <- t(assay(vsd_top))
-pca_top <- prcomp(vsd_top_mat, scale. = FALSE)
-pca_top_df <- as_tibble(pca_top$x[, 1:2], rownames = "samples") %>%
-  left_join(coldata, by = "samples") %>%
-  mutate(samples = str_split(samples, "_", simplify = TRUE)[, 1])
-
-percent_var_top <- round(100 * (pca_top$sdev^2 / sum(pca_top$sdev^2)))[1:2]
-
-ggplot(pca_top_df, aes(PC1, PC2, color = samples)) +
+ggplot(pca_top, aes(PC1, PC2, color = samples)) +
   geom_point(size = 5, alpha = 0.8) +
   scale_shape_manual(values = 16:22) +
   scale_color_viridis_d(option = "turbo") +
   labs(
-    title = paste0("PCA (top ", top_n, " variable genes)"),
+    title = "PCA (top 500 variable genes)",
     x = paste0("PC1: ", percent_var_top[1], "% variance"),
     y = paste0("PC2: ", percent_var_top[2], "% variance")
   ) +
@@ -179,9 +188,14 @@ ggplot(pca_top_df, aes(PC1, PC2, color = samples)) +
   theme_bw()
 ```
 
-# Heatmap - top variable genes
+### Heatmap
 
 ```{r heatmap-top-genes}
+top_n <- params$top_variable_genes
+vars <- matrixStats::rowVars(assay(vsd))
+top_genes <- order(vars, decreasing = TRUE)[seq_len(min(top_n, length(vars)))]
+vsd_top <- vsd[top_genes, ]
+
 mat_top <- assay(vsd_top)
 mat_top <- mat_top - rowMeans(mat_top)
 
