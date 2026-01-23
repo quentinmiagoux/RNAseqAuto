@@ -110,10 +110,12 @@ expr <- openxlsx::read.xlsx(params$expr_xlsx)
 expr2 <- expr %>%
   dplyr::select(gene_symbol, starts_with("read_count_"))
 expr2[, -1] <- expr2[, -1] %>% mutate_all(as.numeric) %>% mutate_all(round)
-expr3 <- expr2 %>% dplyr::select(gene_symbol, starts_with("read_count_"))
+expr3 <- expr2 %>%
+  dplyr::select(gene_symbol, starts_with("read_count_")) %>%
+  as.data.frame()
 
 rownames(expr3) <- expr2$gene_symbol
-expr3 <- expr3[, -1]
+expr3 <- as.matrix(expr3[, -1])
 storage.mode(expr3) <- "integer"
 
 colnames(expr3) <- colnames(expr3) %>%
