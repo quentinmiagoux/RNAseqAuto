@@ -113,6 +113,7 @@ expr3 <- expr2 %>% dplyr::select(gene_symbol, starts_with("read_count_"))
 
 rownames(expr3) <- expr2$gene_symbol
 expr3 <- expr3[, -1]
+storage.mode(expr3) <- "integer"
 
 colnames(expr3) <- colnames(expr3) %>%
   str_remove("^read_count_") %>%
