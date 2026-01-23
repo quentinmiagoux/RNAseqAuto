@@ -132,6 +132,32 @@ ann <- coldata_df %>%
   select(any_of(c("condition", "condition_key")))
 
 rb_palette <- colorRampPalette(c("#2166AC", "white", "#B2182B"))(100)
+
+samples_to_exclude <- c("WT3", "DMD9")
+keep_samples <- !(coldata_df$condition_key %in% samples_to_exclude)
+vsd_filtered <- vsd[, keep_samples]
+
+pca_all_filtered <- plotPCA(
+  vsd_filtered,
+  intgroup = c("samples", "condition"),
+  returnData = TRUE,
+  ntop = nrow(assay(vsd_filtered))
+)
+percent_var_all_filtered <- round(100 * attr(pca_all_filtered, "percentVar"))
+
+pca_all_filtered <- pca_all_filtered %>%
+  mutate(samples = str_split(samples, "_", simplify = TRUE)[, 1])
+
+pca_top_filtered <- plotPCA(
+  vsd_filtered,
+  intgroup = c("samples", "condition"),
+  returnData = TRUE,
+  ntop = 500
+)
+percent_var_top_filtered <- round(100 * attr(pca_top_filtered, "percentVar"))
+
+pca_top_filtered <- pca_top_filtered %>%
+  mutate(samples = str_split(samples, "_", simplify = TRUE)[, 1])
 ```
 
 ## All genes {.tabset .tabset-fade}
@@ -182,6 +208,40 @@ ggplot(pca_top, aes(PC1, PC2, color = samples)) +
     title = "PCA (top 500 variable genes)",
     x = paste0("PC1: ", percent_var_top[1], "% variance"),
     y = paste0("PC2: ", percent_var_top[2], "% variance")
+  ) +
+  coord_fixed(ratio = 4 / 3) +
+  theme_bw()
+```
+
+## Sans WT3 et DMD9 {.tabset .tabset-fade}
+
+### PCA
+
+```{r pca-all-genes-no-wt3-dmd9}
+ggplot(pca_all_filtered, aes(PC1, PC2, color = samples)) +
+  geom_point(size = 5, alpha = 0.8) +
+  scale_shape_manual(values = 16:22) +
+  scale_color_viridis_d(option = "turbo") +
+  labs(
+    title = "PCA (all genes, sans WT3 et DMD9)",
+    x = paste0("PC1: ", percent_var_all_filtered[1], "% variance"),
+    y = paste0("PC2: ", percent_var_all_filtered[2], "% variance")
+  ) +
+  coord_fixed(ratio = 4 / 3) +
+  theme_bw()
+```
+
+### PCA (top 500)
+
+```{r pca-top-genes-no-wt3-dmd9}
+ggplot(pca_top_filtered, aes(PC1, PC2, color = samples)) +
+  geom_point(size = 5, alpha = 0.8) +
+  scale_shape_manual(values = 16:22) +
+  scale_color_viridis_d(option = "turbo") +
+  labs(
+    title = "PCA (top 500 variable genes, sans WT3 et DMD9)",
+    x = paste0("PC1: ", percent_var_top_filtered[1], "% variance"),
+    y = paste0("PC2: ", percent_var_top_filtered[2], "% variance")
   ) +
   coord_fixed(ratio = 4 / 3) +
   theme_bw()
