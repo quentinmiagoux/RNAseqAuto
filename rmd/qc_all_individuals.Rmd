@@ -39,8 +39,6 @@ library("pheatmap")
 library("viridis")
 ```
 
-# Data loading
-
 ```{r load-data}
 stopifnot(file.exists(params$expr_xlsx))
 expr <- openxlsx::read.xlsx(params$expr_xlsx)
@@ -88,8 +86,6 @@ coldata_df <- as.data.frame(coldata)
 rownames(coldata_df) <- coldata_df$samples
 ```
 
-# VST transformation
-
 ```{r vst}
 dds <- DESeqDataSetFromMatrix(
   countData = counts_mat,
@@ -98,16 +94,16 @@ dds <- DESeqDataSetFromMatrix(
 )
 
 dds <- dds[rowSums(counts(dds)) > 10, ]
-vsd <- vst(dds, blind = TRUE)
+rld <- rlog(dds, blind = TRUE)
 ```
 
 # QC {.tabset .tabset-fade}
 
 ```{r pca-setup}
-ntop_all_genes <- nrow(assay(vsd))
+ntop_all_genes <- nrow(assay(rld))
 
 pca_all <- plotPCA(
-  vsd,
+  rld,
   intgroup = c("samples", "condition"),
   returnData = TRUE,
   ntop = ntop_all_genes
@@ -118,7 +114,7 @@ pca_all <- pca_all %>%
   mutate(samples = str_split(samples, "_", simplify = TRUE)[, 1])
 
 pca_top <- plotPCA(
-  vsd,
+  rld,
   intgroup = c("samples", "condition"),
   returnData = TRUE,
   ntop = 500
@@ -135,14 +131,14 @@ rb_palette <- colorRampPalette(c("#2166AC", "white", "#B2182B"))(100)
 
 samples_to_exclude <- c("WT3", "DMD9")
 keep_samples <- !(coldata_df$condition_key %in% samples_to_exclude)
-vsd_filtered <- vsd[, keep_samples]
+rld_filtered <- rld[, keep_samples]
 ann_filtered <- ann[keep_samples, , drop = FALSE]
 
 pca_all_filtered <- plotPCA(
-  vsd_filtered,
+  rld_filtered,
   intgroup = c("samples", "condition"),
   returnData = TRUE,
-  ntop = nrow(assay(vsd_filtered))
+  ntop = nrow(assay(rld_filtered))
 )
 percent_var_all_filtered <- round(100 * attr(pca_all_filtered, "percentVar"))
 
@@ -150,7 +146,7 @@ pca_all_filtered <- pca_all_filtered %>%
   mutate(samples = str_split(samples, "_", simplify = TRUE)[, 1])
 
 pca_top_filtered <- plotPCA(
-  vsd_filtered,
+  rld_filtered,
   intgroup = c("samples", "condition"),
   returnData = TRUE,
   ntop = 500
@@ -184,7 +180,7 @@ ggplot(pca_all, aes(PC1, PC2, color = samples)) +
 #### Heatmap
 
 ```{r heatmap-all-genes}
-sample_dist <- dist(t(assay(vsd)))
+sample_dist <- dist(t(assay(rld)))
 sample_dist_mat <- as.matrix(sample_dist)
 
 pheatmap(
@@ -220,11 +216,11 @@ ggplot(pca_top, aes(PC1, PC2, color = samples)) +
 
 ```{r heatmap-top-genes}
 top_n <- params$top_variable_genes
-vars <- matrixStats::rowVars(assay(vsd))
+vars <- matrixStats::rowVars(assay(rld))
 top_genes <- order(vars, decreasing = TRUE)[seq_len(min(top_n, length(vars)))]
-vsd_top <- vsd[top_genes, ]
+rld_top <- rld[top_genes, ]
 
-mat_top <- assay(vsd_top)
+mat_top <- assay(rld_top)
 mat_top <- mat_top - rowMeans(mat_top)
 
 pheatmap(
@@ -263,7 +259,7 @@ ggplot(pca_all_filtered, aes(PC1, PC2, color = samples)) +
 #### Heatmap
 
 ```{r heatmap-all-genes-no-wt3-dmd9}
-sample_dist_filtered <- dist(t(assay(vsd_filtered)))
+sample_dist_filtered <- dist(t(assay(rld_filtered)))
 sample_dist_mat_filtered <- as.matrix(sample_dist_filtered)
 
 pheatmap(
@@ -299,11 +295,11 @@ ggplot(pca_top_filtered, aes(PC1, PC2, color = samples)) +
 
 ```{r heatmap-top-genes-no-wt3-dmd9}
 top_n <- params$top_variable_genes
-vars <- matrixStats::rowVars(assay(vsd_filtered))
+vars <- matrixStats::rowVars(assay(rld_filtered))
 top_genes <- order(vars, decreasing = TRUE)[seq_len(min(top_n, length(vars)))]
-vsd_top <- vsd_filtered[top_genes, ]
+rld_top <- rld_filtered[top_genes, ]
 
-mat_top <- assay(vsd_top)
+mat_top <- assay(rld_top)
 mat_top <- mat_top - rowMeans(mat_top)
 
 pheatmap(
