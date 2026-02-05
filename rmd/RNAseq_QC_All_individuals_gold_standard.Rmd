@@ -42,7 +42,7 @@ library("viridis")
 
 
 ```{r load-data}
-expr <- openxlsx::read.xlsx("data/gene_expression.xlsx")
+expr <- openxlsx::read.xlsx(params$expr_xlsx)
 
 counts <- expr %>%
   dplyr::select(gene_symbol, starts_with("read_count_")) %>%
