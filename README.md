@@ -1,38 +1,106 @@
 # RNAseqAuto
 
-Ce dépôt contient un exemple de pipeline **Snakemake** pour lancer automatiquement des compilations **R Markdown** (Rmd) à partir d'une liste de comparaisons.
+This repository provides a **Snakemake** pipeline that automates **R Markdown** reporting for RNA‑seq analysis (differential comparisons + global QC). It takes expression and metadata `.xlsx` files as input and produces reproducible HTML reports.
 
-## Structure
+## Workflow overview
 
-- `Snakefile` : définition du workflow Snakemake.
-- `config.yaml` : fichier de configuration pointant vers la table des comparaisons.
-- `comparisons.tsv` : table TSV listant les comparaisons et le Rmd à compiler.
-- `rmd/comparison_report.Rmd` : exemple de template R Markdown.
-- `results/` : sorties HTML générées.
+The `Snakefile` orchestrates two rendering paths:
 
-## Pré-requis
+- **Comparison reports**: one report per comparison listed in `comparisons.tsv`, filtered by the `_merged` or `_unmerged` suffix depending on configuration.
+- **Global QC**: a single `qc_all_individuals.html` report based on `rmd/RNAseq_QC_All_individuals_gold_standard.Rmd`.
 
-- Snakemake (ex: `pip install snakemake`)
-- R + le package `rmarkdown`
+Comparison parameters (groups, design formula, thresholds, sample exclusions) are injected into the Rmds via `rmarkdown::render()`.
 
-## Utilisation
+## Repository structure
 
-1. Modifiez `comparisons.tsv` pour ajouter vos comparaisons :
+- `Snakefile`: Snakemake logic (load comparisons, set parameters, render Rmds).
+- `config.yaml`: input paths and analysis options.
+- `comparisons.tsv`: list of available comparisons.
+- `rmd/`: R Markdown analysis scripts.
+- `results/`: generated HTML reports.
+- `logs/`: render logs for each report.
+
+## Expected inputs
+
+In `config.yaml`, you must provide:
+
+- `gene_expression_xlsx`: expression table (genes × samples).
+- `coldata_xlsx`: sample metadata.
+- `comparisons_file`: path to `comparisons.tsv`.
+
+Key options:
+
+- `design_formula`: DESeq2 formula (e.g., `~ condition2`).
+- `merge_replicates`: `true`/`false` (controls which comparisons are active).
+- `lfc_threshold`: log2 fold‑change threshold.
+- `samples_to_exclude`: list of samples to remove.
+- `top_variable_genes`: used for the global QC report.
+
+## Define comparisons
+
+Example `comparisons.tsv`:
 
 ```tsv
 comparison	group_a	group_b	rmd
-control_vs_treatment	control	treatment	rmd/comparison_report.Rmd
+control_vs_treatment_merged	control	treatment	rmd/rnaseq_comparison.Rmd
 ```
 
-2. Lancez Snakemake :
+- `comparison`: unique comparison name.
+- `group_a` / `group_b`: group labels.
+- `rmd`: path to the Rmd to render.
+
+> Note: only comparisons whose names end with `_merged` (or `_unmerged` if `merge_replicates: false`) are rendered.
+
+## Main commands
+
+### Run the full pipeline
 
 ```bash
 snakemake --cores 1
 ```
 
-Les rapports HTML seront générés dans `results/`.
+Generates:
 
-## Personnalisation
+- `results/{comparison}.html`
+- `results/qc_all_individuals.html`
 
-- Modifiez `rmd/comparison_report.Rmd` pour intégrer vos analyses.
-- Ajoutez d'autres colonnes dans `comparisons.tsv` et adaptez le `Snakefile` si besoin.
+### Render a specific comparison
+
+```bash
+snakemake --cores 1 results/<comparison>.html
+```
+
+### Rebuild only the global QC report
+
+```bash
+snakemake --cores 1 results/qc_all_individuals.html
+```
+
+## R Markdown rendering details
+
+Reports are rendered with `rmarkdown::render()` using:
+
+- A dedicated intermediates folder: `results/.knit/<comparison>`.
+- Per-report logs: `logs/render_rmd/<comparison>.log`.
+
+Example log inspection:
+
+```bash
+cat logs/render_rmd/<comparison>.log
+```
+
+## Prerequisites
+
+- Snakemake (e.g., `pip install snakemake`)
+- R + the `rmarkdown` package
+
+## Customize the analysis
+
+- Edit the Rmds in `rmd/` to adapt the analyses (volcano plots, PCA, QC, etc.).
+- Add columns to `comparisons.tsv` and update the `Snakefile` if you want to pass additional parameters to the Rmds.
+
+## Quick troubleshooting
+
+- Check logs in `logs/render_rmd/`.
+- Confirm that `gene_expression_xlsx` and `coldata_xlsx` paths are correct.
+- Ensure comparison suffixes match `merge_replicates`.
