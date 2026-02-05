@@ -28,6 +28,7 @@ editor_options:
   chunk_output_type: console
 ---
 
+Beginner note: The next code chunk (`setup`) prepares data or visuals for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(
   echo = FALSE,
@@ -38,6 +39,7 @@ knitr::opts_chunk$set(
 )
 ```
 
+Beginner note: The next code chunk (`packages`) prepares data or visuals for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r packages}
 library("openxlsx")
 library("DT")
@@ -57,6 +59,7 @@ library("DESeq2")
 set.seed(123)
 ```
 
+Beginner note: The next code chunk (`functions`) prepares data or visuals for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r functions}
 datatable_fun <- function(x) {
   x %>%
@@ -101,6 +104,7 @@ canonicalize_group <- function(group) {
 }
 ```
 
+Beginner note: The next code chunk (`transform-data`) prepares data or visuals for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r transform-data}
 cat("R getwd(): ", getwd(), "\n")
 cat("expr_xlsx: ", params$expr_xlsx, "\n")
@@ -172,6 +176,7 @@ expr3_all <- full_data$expr
 coldata_all <- full_data$coldata
 ```
 
+Beginner note: The next code chunk (`DESeq2`) prepares data or visuals for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r DESeq2}
 cat("expr_xlsx: ", params$lfc_threshold, "\n")
 
@@ -255,6 +260,7 @@ finalDE <- res %>%
   rownames_to_column(var = "symbol")
 ```
 
+Beginner note: The next code chunk (`entrezid`) prepares data or visuals for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r entrezid}
 gene.df <- bitr(
   finalDE_padj05$symbol,
@@ -294,6 +300,7 @@ names(gsea_gene) <- finalDE_entrez$ENTREZID
 
 # QC {.tabset .tabset-fade}
 
+Beginner note: The next code chunk (`PCA`) prepares data or visuals for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r PCA}
 data <- counts(dds, normalized = TRUE)
 
@@ -351,6 +358,7 @@ pcaData_top_with <- pcaData_top_with %>%
 
 ### Sans WT3/DMD9
 
+Beginner note: The next code chunk (`PCA-all-genes-without`) prepares data or visuals for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r PCA-all-genes-without}
 
 ggplot(pcaData_all_without, aes(PC1, PC2, color = samples)) +
@@ -365,6 +373,7 @@ ggplot(pcaData_all_without, aes(PC1, PC2, color = samples)) +
 
 ### Avec WT3/DMD9
 
+Beginner note: The next code chunk (`PCA-all-genes-with`) prepares data or visuals for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r PCA-all-genes-with}
 
 ggplot(pcaData_all_with, aes(PC1, PC2, color = samples)) +
@@ -379,6 +388,7 @@ ggplot(pcaData_all_with, aes(PC1, PC2, color = samples)) +
 
 ### Heatmap
 
+Beginner note: The next code chunk (`pheatmap-all-genes`) prepares data or visuals for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r pheatmap-all-genes}
 mat_all <- assay(rld)
 ann <- as.data.frame(colData(dds))[, c("condition", "condition2", "condition3"), drop = FALSE]
@@ -404,6 +414,7 @@ pheatmap(
 
 ### Sans WT3/DMD9
 
+Beginner note: The next code chunk (`PCA-top-500-without`) prepares data or visuals for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r PCA-top-500-without}
 ggplot(pcaData_top_without, aes(PC1, PC2, color = samples)) +
   geom_point(size = 5, alpha = 0.8) +
@@ -417,6 +428,7 @@ ggplot(pcaData_top_without, aes(PC1, PC2, color = samples)) +
 
 ### Avec WT3/DMD9
 
+Beginner note: The next code chunk (`PCA-top-500-with`) prepares data or visuals for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r PCA-top-500-with}
 ggplot(pcaData_top_with, aes(PC1, PC2, color = samples)) +
   geom_point(size = 5, alpha = 0.8) +
@@ -430,6 +442,7 @@ ggplot(pcaData_top_with, aes(PC1, PC2, color = samples)) +
 
 ### Heatmap
 
+Beginner note: The next code chunk (`pheatmap-top-500`) prepares data or visuals for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r pheatmap-top-500}
 mat <- assay(rld)
 
@@ -454,6 +467,7 @@ pheatmap(
 # DEA {.tabset .tabset-fade}
 ## DEGs
 
+Beginner note: The next code chunk runs analysis code for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r}
 finalDE_VP <- finalDE
 keyvals <- ifelse(
@@ -512,6 +526,7 @@ finalDE_padj05 %>%
 
 ## All genes
 
+Beginner note: The next code chunk (`allgenes`) prepares data or visuals for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r allgenes}
 
 finalDE <- left_join(finalDE,data, by=c("symbol"))
@@ -541,6 +556,7 @@ finalDE %>%
 
 ##### Table
 
+Beginner note: The next code chunk (`goccup`) prepares data or visuals for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r goccup}
 gocc_up <- enrichGO(
   gene = gene.df_up,
@@ -578,6 +594,7 @@ if (!is.null(gocc_up)) {
 
 ##### Dotplot
 
+Beginner note: The next code chunk (`dotplotgocc`) prepares data or visuals for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r dotplotgocc}
 if (!is.null(gocc_up)) {
   if (test) {
@@ -588,6 +605,7 @@ if (!is.null(gocc_up)) {
 
 ##### Gene-Concept Network
 
+Beginner note: The next code chunk (`cnetplotgocc`) prepares data or visuals for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r cnetplotgocc}
 if (!is.null(gocc_up)) {
   if (test) {
@@ -600,6 +618,7 @@ if (!is.null(gocc_up)) {
 
 ##### Table
 
+Beginner note: The next code chunk runs analysis code for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r}
 gocc_down <- enrichGO(
   gene = gene.df_down,
@@ -638,6 +657,7 @@ if (!is.null(gocc_down)) {
 
 ##### Dotplot
 
+Beginner note: The next code chunk runs analysis code for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r}
 if (!is.null(gocc_down)) {
   if (test) {
@@ -648,6 +668,7 @@ if (!is.null(gocc_down)) {
 
 ##### Gene-Concept Network
 
+Beginner note: The next code chunk runs analysis code for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r}
 if (!is.null(gocc_down)) {
   if (test) {
@@ -660,6 +681,7 @@ if (!is.null(gocc_down)) {
 
 ##### Table
 
+Beginner note: The next code chunk runs analysis code for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r}
 gocc_all <- enrichGO(
   gene = gene.df_all,
@@ -698,6 +720,7 @@ if (!is.null(gocc_all)) {
 
 ##### Dotplot
 
+Beginner note: The next code chunk runs analysis code for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r}
 if (!is.null(gocc_all)) {
   if (test) {
@@ -708,6 +731,7 @@ if (!is.null(gocc_all)) {
 
 ##### Gene-Concept Network
 
+Beginner note: The next code chunk runs analysis code for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r}
 if (!is.null(gocc_all)) {
   if (test) {
@@ -722,6 +746,7 @@ if (!is.null(gocc_all)) {
 
 ##### Table
 
+Beginner note: The next code chunk runs analysis code for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r}
 gomf_up <- enrichGO(
   gene = gene.df_up,
@@ -760,6 +785,7 @@ if (!is.null(gomf_up)) {
 
 ##### Dotplot
 
+Beginner note: The next code chunk runs analysis code for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r}
 if (!is.null(gomf_up)) {
   if (test) {
@@ -770,6 +796,7 @@ if (!is.null(gomf_up)) {
 
 ##### Gene-Concept Network
 
+Beginner note: The next code chunk runs analysis code for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r}
 if (!is.null(gomf_up)) {
   if (test) {
@@ -782,6 +809,7 @@ if (!is.null(gomf_up)) {
 
 ##### Table
 
+Beginner note: The next code chunk runs analysis code for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r}
 gomf_down <- enrichGO(
   gene = gene.df_down,
@@ -821,6 +849,7 @@ if (!is.null(gomf_down)) {
 
 ##### Dotplot
 
+Beginner note: The next code chunk runs analysis code for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r}
 if (!is.null(gomf_down)) {
   if (test) {
@@ -831,6 +860,7 @@ if (!is.null(gomf_down)) {
 
 ##### Gene-Concept Network
 
+Beginner note: The next code chunk runs analysis code for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r}
 if (!is.null(gomf_down)) {
   if (test) {
@@ -843,6 +873,7 @@ if (!is.null(gomf_down)) {
 
 ##### Table
 
+Beginner note: The next code chunk runs analysis code for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r}
 gomf_all <- enrichGO(
   gene = gene.df_all,
@@ -882,6 +913,7 @@ if (!is.null(gomf_all)) {
 
 ##### Dotplot
 
+Beginner note: The next code chunk runs analysis code for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r}
 if (!is.null(gomf_all)) {
   if (test) {
@@ -892,6 +924,7 @@ if (!is.null(gomf_all)) {
 
 ##### Gene-Concept Network
 
+Beginner note: The next code chunk runs analysis code for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r}
 if (!is.null(gomf_all)) {
   if (test) {
@@ -906,6 +939,7 @@ if (!is.null(gomf_all)) {
 
 ##### Table
 
+Beginner note: The next code chunk runs analysis code for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r}
 gobp_up <- enrichGO(
   gene = gene.df_up,
@@ -945,6 +979,7 @@ if (!is.null(gobp_up)) {
 
 ##### Dotplot
 
+Beginner note: The next code chunk runs analysis code for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r}
 if (!is.null(gobp_up)) {
   if (test) {
@@ -955,6 +990,7 @@ if (!is.null(gobp_up)) {
 
 ##### Gene-Concept Network
 
+Beginner note: The next code chunk runs analysis code for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r}
 if (!is.null(gobp_up)) {
   if (test) {
@@ -967,6 +1003,7 @@ if (!is.null(gobp_up)) {
 
 ##### Table
 
+Beginner note: The next code chunk runs analysis code for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r}
 gobp_down <- enrichGO(
   gene = gene.df_down,
@@ -1006,6 +1043,7 @@ if (!is.null(gobp_down)) {
 
 ##### Dotplot
 
+Beginner note: The next code chunk runs analysis code for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r}
 if (!is.null(gobp_down)) {
   if (test) {
@@ -1016,6 +1054,7 @@ if (!is.null(gobp_down)) {
 
 ##### Gene-Concept Network
 
+Beginner note: The next code chunk runs analysis code for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r}
 if (!is.null(gobp_down)) {
   if (test) {
@@ -1028,6 +1067,7 @@ if (!is.null(gobp_down)) {
 
 ##### Table
 
+Beginner note: The next code chunk runs analysis code for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r}
 gobp_all <- enrichGO(
   gene = gene.df_all,
@@ -1067,6 +1107,7 @@ if (!is.null(gobp_all)) {
 
 ##### Dotplot
 
+Beginner note: The next code chunk runs analysis code for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r}
 if (!is.null(gobp_all)) {
   if (test) {
@@ -1077,6 +1118,7 @@ if (!is.null(gobp_all)) {
 
 ##### Gene-Concept Network
 
+Beginner note: The next code chunk runs analysis code for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r}
 if (!is.null(gobp_all)) {
   if (test) {
@@ -1085,6 +1127,7 @@ if (!is.null(gobp_all)) {
 }
 ```
 
+Beginner note: The next code chunk (`eval=FALSE`) prepares data or visuals for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r eval=FALSE, include=FALSE}
 gc()
 ```
@@ -1095,6 +1138,7 @@ gc()
 
 #### Table
 
+Beginner note: The next code chunk runs analysis code for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r}
 egocc <- gseGO(
   geneList = gsea_gene,
@@ -1133,6 +1177,7 @@ if (!is.null(egocc)) {
 
 #### Dotplot
 
+Beginner note: The next code chunk runs analysis code for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r}
 if (!is.null(egocc)) {
   if (test) {
@@ -1141,6 +1186,7 @@ if (!is.null(egocc)) {
 }
 ```
 
+Beginner note: The next code chunk (`eval=FALSE`) prepares data or visuals for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r eval=FALSE, include=FALSE}
 gc()
 ```
@@ -1149,6 +1195,7 @@ gc()
 
 #### Table
 
+Beginner note: The next code chunk runs analysis code for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r}
 egomf <- gseGO(
   geneList = gsea_gene,
@@ -1186,6 +1233,7 @@ if (!is.null(egomf)) {
 
 #### Dotplot
 
+Beginner note: The next code chunk runs analysis code for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r}
 if (!is.null(egomf)) {
   if (test) {
@@ -1194,6 +1242,7 @@ if (!is.null(egomf)) {
 }
 ```
 
+Beginner note: The next code chunk (`eval=FALSE`) prepares data or visuals for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r eval=FALSE, include=FALSE}
 gc()
 ```
@@ -1202,6 +1251,7 @@ gc()
 
 #### Table
 
+Beginner note: The next code chunk runs analysis code for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r}
 egobp <- gseGO(
   geneList = gsea_gene,
@@ -1240,6 +1290,7 @@ if (!is.null(egobp)) {
 
 #### Dotplot
 
+Beginner note: The next code chunk runs analysis code for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r}
 if (!is.null(egobp)) {
   if (test) {
@@ -1248,6 +1299,7 @@ if (!is.null(egobp)) {
 }
 ```
 
+Beginner note: The next code chunk (`eval=FALSE`) prepares data or visuals for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r eval=FALSE, include=FALSE}
 gc()
 ```
@@ -1262,6 +1314,7 @@ gc()
 
 ##### Table
 
+Beginner note: The next code chunk runs analysis code for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r}
 kk_up <- enrichKEGG(
   gene = gene.df_up,
@@ -1301,6 +1354,7 @@ if (!is.null(kk_up)) {
 
 ##### Dotplot
 
+Beginner note: The next code chunk runs analysis code for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r}
 if (!is.null(kk_up)) {
   if (test) {
@@ -1313,6 +1367,7 @@ if (!is.null(kk_up)) {
 
 ##### Table
 
+Beginner note: The next code chunk runs analysis code for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r}
 kk_down <- enrichKEGG(
   gene = gene.df_down,
@@ -1351,6 +1406,7 @@ if (!is.null(kk_down)) {
 
 ##### Dotplot
 
+Beginner note: The next code chunk runs analysis code for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r}
 if (!is.null(kk_down)) {
   if (test) {
@@ -1363,6 +1419,7 @@ if (!is.null(kk_down)) {
 
 ##### Table
 
+Beginner note: The next code chunk runs analysis code for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r}
 kk_all <- enrichKEGG(
   gene = gene.df_all,
@@ -1401,6 +1458,7 @@ if (!is.null(kk_all)) {
 
 ##### Dotplot
 
+Beginner note: The next code chunk runs analysis code for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r}
 if (!is.null(kk_all)) {
   if (test) {
@@ -1413,6 +1471,7 @@ if (!is.null(kk_all)) {
 
 #### Table
 
+Beginner note: The next code chunk runs analysis code for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r}
 kkg <- gseKEGG(
   gene = gsea_gene,
@@ -1450,6 +1509,7 @@ if (!is.null(kkg)) {
 
 #### Dotplot
 
+Beginner note: The next code chunk runs analysis code for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r}
 if (!is.null(kkg)) {
   if (test) {
@@ -1458,6 +1518,7 @@ if (!is.null(kkg)) {
 }
 ```
 
+Beginner note: The next code chunk (`eval=FALSE`) prepares data or visuals for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r eval=FALSE, include=FALSE}
 gc()
 ```
@@ -1470,6 +1531,7 @@ gc()
 
 ##### Table
 
+Beginner note: The next code chunk runs analysis code for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r}
 wpres_up <- enrichWP(
   gene.df_up,
@@ -1507,6 +1569,7 @@ if (!is.null(wpres_up)) {
 
 ##### Dotplot
 
+Beginner note: The next code chunk runs analysis code for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r}
 if (!is.null(wpres_up)) {
   if (test) {
@@ -1519,6 +1582,7 @@ if (!is.null(wpres_up)) {
 
 ##### Table
 
+Beginner note: The next code chunk runs analysis code for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r}
 wpres_down <- enrichWP(
   gene.df_down,
@@ -1556,6 +1620,7 @@ if (!is.null(wpres_down)) {
 
 ##### Dotplot
 
+Beginner note: The next code chunk (`fig.width = 6`) prepares data or visuals for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r, fig.width = 6, fig.height=7}
 if (!is.null(wpres_down)) {
   if (test) {
@@ -1568,6 +1633,7 @@ if (!is.null(wpres_down)) {
 
 ##### Table
 
+Beginner note: The next code chunk runs analysis code for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r}
 wpres_all <- enrichWP(
   gene.df_all,
@@ -1605,6 +1671,7 @@ if (!is.null(wpres_all)) {
 
 ##### Dotplot
 
+Beginner note: The next code chunk (`fig.width = 6`) prepares data or visuals for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r, fig.width = 6, fig.height=7}
 if (!is.null(wpres_all)) {
   if (test) {
@@ -1617,6 +1684,7 @@ if (!is.null(wpres_all)) {
 
 #### Table
 
+Beginner note: The next code chunk runs analysis code for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r}
 wpresg <- gseWP(
   gsea_gene,
@@ -1653,6 +1721,7 @@ if (!is.null(wpresg)) {
 
 #### Dotplot
 
+Beginner note: The next code chunk (`fig.width = 6`) prepares data or visuals for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r, fig.width = 6, fig.height=7}
 if (!is.null(wpresg)) {
   if (test) {
@@ -1661,6 +1730,7 @@ if (!is.null(wpresg)) {
 }
 ```
 
+Beginner note: The next code chunk (`eval=FALSE`) prepares data or visuals for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r eval=FALSE, include=FALSE}
 gc()
 ```
@@ -1673,6 +1743,7 @@ gc()
 
 ##### Table
 
+Beginner note: The next code chunk runs analysis code for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r}
 reactome_up <- enrichPathway(
   gene = gene.df_up,
@@ -1710,6 +1781,7 @@ if (!is.null(reactome_up)) {
 
 ##### Dotplot
 
+Beginner note: The next code chunk (`fig.width = 6`) prepares data or visuals for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r, fig.width = 6, fig.height=7}
 if (!is.null(reactome_up)) {
   if (test) {
@@ -1721,6 +1793,7 @@ if (!is.null(reactome_up)) {
 #### Down {.tabset .tabset-fade}
 ##### Table
 
+Beginner note: The next code chunk runs analysis code for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r}
 reactome_down <- enrichPathway(
   gene = gene.df_down,
@@ -1758,6 +1831,7 @@ if (!is.null(reactome_down)) {
 
 ##### Dotplot
 
+Beginner note: The next code chunk (`fig.width = 6`) prepares data or visuals for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r, fig.width = 6, fig.height=7}
 if (!is.null(reactome_down)) {
   if (test) {
@@ -1769,6 +1843,7 @@ if (!is.null(reactome_down)) {
 #### All {.tabset .tabset-fade}
 ##### Table
 
+Beginner note: The next code chunk runs analysis code for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r}
 reactome_all <- enrichPathway(
   gene = gene.df_all,
@@ -1806,6 +1881,7 @@ if (!is.null(reactome_all)) {
 
 ##### Dotplot
 
+Beginner note: The next code chunk (`fig.width = 6`) prepares data or visuals for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r, fig.width = 6, fig.height=7}
 if (!is.null(reactome_all)) {
   if (test) {
@@ -1814,6 +1890,7 @@ if (!is.null(reactome_all)) {
 }
 ```
 
+Beginner note: The next code chunk (`eval=FALSE`) prepares data or visuals for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r eval=FALSE, include=FALSE}
 gc()
 ```
@@ -1822,6 +1899,7 @@ gc()
 
 #### Table
 
+Beginner note: The next code chunk runs analysis code for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r}
 reactome_gsea <- gsePathway(
   gsea_gene,
@@ -1858,6 +1936,7 @@ if (!is.null(reactome_gsea)) {
 
 #### Dotplot
 
+Beginner note: The next code chunk (`fig.width = 6`) prepares data or visuals for this section; you don't need to edit it unless you want to change how the analysis runs.
 ```{r, fig.width = 6, fig.height=7}
 if (!is.null(reactome_gsea)) {
   if (test) {
