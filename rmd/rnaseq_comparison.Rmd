@@ -23,10 +23,13 @@ params:
   merge_replicates:
   lfc_threshold:
   lfc: 
+  padj: 0.05
   bm:
   lfcse:
   design_formula: ""
   samples_to_exclude:
+  output_root: "results"
+  run_tag: ""
 editor_options:
   chunk_output_type: console
 ---
@@ -108,6 +111,7 @@ canonicalize_group <- function(group) {
 cat("Log2FoldChange: ", log2(params$lfc), "\n")
 cat("BaseMean: ", params$bm, "\n")
 cat("lfcSE: ", params$lfcse, "\n")
+cat("padj: ", params$padj, "\n")
 cat("lfc: ", params$lfc_threshold, "\n")
 
 
@@ -253,7 +257,7 @@ rld <- vst(dds, blind = TRUE)
 
 finalDE_padj05 <- res %>%
   data.frame() %>%
-  dplyr::filter(abs(log2FoldChange) > log2(params$lfc), padj < 0.05, baseMean > params$bm, lfcSE < params$lfcse) %>%
+  dplyr::filter(abs(log2FoldChange) > log2(params$lfc), padj < params$padj, baseMean > params$bm, lfcSE < params$lfcse) %>%
   rownames_to_column(var = "symbol")
 finalDE <- res %>%
   data.frame() %>%
@@ -287,10 +291,10 @@ finalDE_entrez <- finalDE_entrez[!(is.na(finalDE_entrez$ENTREZID)), ]
 finalDE_entrez <- finalDE_entrez[order(finalDE_entrez$log2FoldChange, decreasing = TRUE), ]
 
 gene.df_down <- finalDE_entrez %>%
-  dplyr::filter(log2FoldChange < - log2(params$lfc), padj < 0.05) %>%
+  dplyr::filter(log2FoldChange < - log2(params$lfc), padj < params$padj) %>%
   pull(ENTREZID)
 gene.df_up <- finalDE_entrez %>%
-  dplyr::filter(log2FoldChange > log2(params$lfc), padj < 0.05) %>%
+  dplyr::filter(log2FoldChange > log2(params$lfc), padj < params$padj) %>%
   pull(ENTREZID)
 gene.df_all <- unique(c(gene.df_up, gene.df_down))
 
@@ -463,8 +467,8 @@ pheatmap(
 ```{r}
 finalDE_VP <- finalDE
 keyvals <- ifelse(
-    finalDE_VP$log2FoldChange < - log2(params$lfc) & finalDE_VP$padj < .05 & finalDE_VP$baseMean > params$bm, 'royalblue',
-      ifelse(finalDE_VP$log2FoldChange > log2(params$lfc) & finalDE_VP$padj <  .05 & finalDE_VP$baseMean > params$bm , 'red',
+    finalDE_VP$log2FoldChange < - log2(params$lfc) & finalDE_VP$padj < params$padj & finalDE_VP$baseMean > params$bm, 'royalblue',
+      ifelse(finalDE_VP$log2FoldChange > log2(params$lfc) & finalDE_VP$padj < params$padj & finalDE_VP$baseMean > params$bm , 'red',
         'grey'))
   keyvals[is.na(keyvals)] <- 'grey'
   names(keyvals)[keyvals == 'red'] <- 'Up-regulated'
@@ -475,7 +479,7 @@ EnhancedVolcano(finalDE_VP,
                 lab = finalDE_VP$symbol, 
                 title = "",
                 subtitle = "",
-                caption = paste0("Total = ", nrow(finalDE_VP), " variables, ",  "DEGs = ", nrow(finalDE_padj05), " corrected p-value (FDR) < 0.05 & ",  bquote("|FC| > 2 ")),
+                caption = paste0("Total = ", nrow(finalDE_VP), " variables, ",  "DEGs = ", nrow(finalDE_padj05), " corrected p-value (FDR) < ", params$padj, " & ",  bquote("|FC| > 2 ")),
                 x="log2FoldChange", 
                 y= "padj",
                 pCutoff = 5e-2,
@@ -497,6 +501,26 @@ data <- counts(dds, normalized=T)
 data <- data %>% data.frame %>% rownames_to_column(var = "symbol")
 
 finalDE_padj05 <- left_join(finalDE_padj05,data, by=c("symbol"))
+
+run_tag <- params$run_tag
+if (is.null(run_tag) || !nzchar(run_tag)) {
+  run_tag <- paste0(
+    "lfc", gsub("\\.", "p", as.character(params$lfc)),
+    "_padj", gsub("\\.", "p", as.character(params$padj)),
+    "_bm", gsub("\\.", "p", as.character(params$bm)),
+    "_lfct", gsub("\\.", "p", as.character(params$lfc_threshold)),
+    "_lfcse", gsub("\\.", "p", as.character(params$lfcse))
+  )
+}
+
+comparison_output_dir <- file.path(params$output_root, params$comparison, run_tag)
+dir.create(comparison_output_dir, recursive = TRUE, showWarnings = FALSE)
+
+deg_output_file <- file.path(
+  comparison_output_dir,
+  paste0("DEGs_", params$comparison, "_", run_tag, ".xlsx")
+)
+openxlsx::write.xlsx(finalDE_padj05, deg_output_file, overwrite = TRUE)
 
 finalDE_padj05 %>%  
   datatable_fun
