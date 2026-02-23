@@ -26,17 +26,19 @@ library(RColorBrewer)
 
 ```{r load-deg-files}
 pattern <- if (nzchar(params$run_tag)) {
-  paste0("^DEGs_.*_", params$run_tag, "\\\\.xlsx$")
+  paste0("^DEGs_.*_", params$run_tag, "\\.xlsx$")
 } else {
-  "^DEGs_.*\\\\.xlsx$"
+  "^DEGs_.*\\.xlsx$"
 }
 
-deg_files <- list.files(
+deg_candidates <- list.files(
   params$deg_root_dir,
-  pattern = pattern,
+  pattern = "\\.xlsx$",
   full.names = TRUE,
   recursive = TRUE
 )
+
+deg_files <- deg_candidates[str_detect(basename(deg_candidates), pattern)]
 
 if (length(deg_files) == 0) {
   stop("No DEG Excel files found in ", params$deg_root_dir, " with pattern: ", pattern)
@@ -44,7 +46,7 @@ if (length(deg_files) == 0) {
 
 comparison_names <- basename(deg_files) %>%
   str_remove("^DEGs_") %>%
-  str_remove("\\\\.xlsx$") %>%
+  str_remove("\\.xlsx$") %>%
   str_remove(paste0("_", params$run_tag, "$"))
 
 all_comp <- setNames(lapply(deg_files, openxlsx::read.xlsx), comparison_names)
