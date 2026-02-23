@@ -220,17 +220,16 @@ dds <- DESeq(dds)
 coef_name <- paste0("condition2_", group_a, "_vs_", group_b)
 res <- results(
   dds,
-  contrast = c("condition2", group_a, group_b),
-  lfcThreshold = .5
+  contrast = c("condition2", group_a, group_b)
 )
 
 
-res <- lfcShrink(
-  dds,
-  coef = coef_name,
-  res = res,
-  type = "apeglm"
-)
+#res <- lfcShrink(
+#  dds,
+#  coef = coef_name,
+#  res = res,
+#  type = "apeglm"
+#)
 
 rld_all <- vst(dds_all, blind = TRUE)
 rld <- vst(dds, blind = TRUE)

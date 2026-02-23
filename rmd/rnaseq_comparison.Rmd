@@ -22,6 +22,9 @@ params:
   coldata_xlsx: ""
   merge_replicates:
   lfc_threshold:
+  lfc: 
+  bm:
+  lfcse:
   design_formula: ""
   samples_to_exclude:
 editor_options:
@@ -102,9 +105,12 @@ canonicalize_group <- function(group) {
 ```
 
 ```{r transform-data}
-cat("R getwd(): ", getwd(), "\n")
-cat("expr_xlsx: ", params$expr_xlsx, "\n")
-cat("exists: ", file.exists(params$expr_xlsx), "\n")
+cat("Log2FoldChange: ", log2(params$lfc), "\n")
+cat("BaseMean: ", params$bm, "\n")
+cat("lfcSE: ", params$lfcse, "\n")
+cat("lfc: ", params$lfc_threshold, "\n")
+
+
 stopifnot(file.exists(params$expr_xlsx))
 expr <- openxlsx::read.xlsx(params$expr_xlsx)
 expr2 <- expr %>%
@@ -247,11 +253,11 @@ rld <- vst(dds, blind = TRUE)
 
 finalDE_padj05 <- res %>%
   data.frame() %>%
-  dplyr::filter(abs(log2FoldChange) > log2(2), padj < 0.05, baseMean > 50, lfcSE < 1) %>%
+  dplyr::filter(abs(log2FoldChange) > log2(params$lfc), padj < 0.05, baseMean > params$bm, lfcSE < params$lfcse) %>%
   rownames_to_column(var = "symbol")
 finalDE <- res %>%
   data.frame() %>%
-  dplyr::filter(baseMean > 50) %>%
+  dplyr::filter(baseMean > params$bm) %>%
   rownames_to_column(var = "symbol")
 ```
 
@@ -281,10 +287,10 @@ finalDE_entrez <- finalDE_entrez[!(is.na(finalDE_entrez$ENTREZID)), ]
 finalDE_entrez <- finalDE_entrez[order(finalDE_entrez$log2FoldChange, decreasing = TRUE), ]
 
 gene.df_down <- finalDE_entrez %>%
-  dplyr::filter(log2FoldChange < -log2(2), padj < 0.05) %>%
+  dplyr::filter(log2FoldChange < - log2(params$lfc), padj < 0.05) %>%
   pull(ENTREZID)
 gene.df_up <- finalDE_entrez %>%
-  dplyr::filter(log2FoldChange > log2(2), padj < 0.05) %>%
+  dplyr::filter(log2FoldChange > log2(params$lfc), padj < 0.05) %>%
   pull(ENTREZID)
 gene.df_all <- unique(c(gene.df_up, gene.df_down))
 
@@ -457,8 +463,8 @@ pheatmap(
 ```{r}
 finalDE_VP <- finalDE
 keyvals <- ifelse(
-    finalDE_VP$log2FoldChange < -log2(2) & finalDE_VP$padj < .05 & finalDE_VP$baseMean > 20, 'royalblue',
-      ifelse(finalDE_VP$log2FoldChange > log2(2) & finalDE_VP$padj <  .05 & finalDE_VP$baseMean > 20 , 'red',
+    finalDE_VP$log2FoldChange < - log2(params$lfc) & finalDE_VP$padj < .05 & finalDE_VP$baseMean > params$bm, 'royalblue',
+      ifelse(finalDE_VP$log2FoldChange > log2(params$lfc) & finalDE_VP$padj <  .05 & finalDE_VP$baseMean > params$bm , 'red',
         'grey'))
   keyvals[is.na(keyvals)] <- 'grey'
   names(keyvals)[keyvals == 'red'] <- 'Up-regulated'
@@ -473,7 +479,7 @@ EnhancedVolcano(finalDE_VP,
                 x="log2FoldChange", 
                 y= "padj",
                 pCutoff = 5e-2,
-                FCcutoff = log2(2),
+                FCcutoff = log2(params$lfc),
                 pointSize = 3.0,
                 colCustom = keyvals,
                 labSize = 5.0,

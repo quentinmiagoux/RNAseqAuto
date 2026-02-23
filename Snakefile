@@ -72,6 +72,9 @@ rule render_rmd:
         ),
         merge_replicates=lambda wc: r_bool(config.get("merge_replicates", False)),
         lfc_threshold=lambda wc: config.get("lfc_threshold", 0.0),
+        lfc=lambda wc: config.get("lfc", 0.0),
+        bm=lambda wc: config.get("bm", 50),
+        lfcse=lambda wc: config.get("lfcse", 1),
         samples_to_exclude=lambda wc: r_str_vector(samples_to_exclude),
     shell:
         r"""
@@ -88,6 +91,9 @@ rule render_rmd:
             design_formula=\"{params.design_formula}\",
             merge_replicates={params.merge_replicates},
             lfc_threshold={params.lfc_threshold},
+            lfc={params.lfc},
+            bm={params.bm},
+            lfcse={params.lfcse},
             samples_to_exclude={params.samples_to_exclude},
             expr_xlsx=\"{input.expr_xlsx}\",
             coldata_xlsx=\"{input.coldata_xlsx}\"
