@@ -1,228 +1,186 @@
 ---
-title: "RNAseq x Proteomics"
+title: "RNAseq DEG cross-comparison"
 author: "Quentin"
 date: "`r Sys.Date()`"
-output: html_document
+output:
+  html_document:
+    df_print: paged
+params:
+  deg_root_dir: "results"
+  run_tag: ""
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(
-	echo = FALSE,
-	message = FALSE,
-	warning = FALSE
-)
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
 ```
 
-```{r}
+```{r packages}
 library(tidyverse)
 library(openxlsx)
 library(DT)
-library(crosstalk)
+library(ComplexUpset)
 library(ComplexHeatmap)
 library(eulerr)
 library(RColorBrewer)
-library(reactable)
 ```
 
+```{r load-deg-files}
+pattern <- if (nzchar(params$run_tag)) {
+  paste0("^DEGs_.*_", params$run_tag, "\\\\.xlsx$")
+} else {
+  "^DEGs_.*\\\\.xlsx$"
+}
 
-```{r}
-DMD_rnaseq <- read.xlsx("Data_RNAseq/DEGs_FC2_005_BM50_DMD.xlsx")
-DN_rnaseq <- read.xlsx("Data_RNAseq/DEGs_FC2_005_BM50_DN.xlsx")
-GSDII_rnaseq <- read.xlsx("Data_RNAseq/DEGs_FC2_005_BM50_GSDII.xlsx")
-DNM2_rnaseq <- read.xlsx("Data_RNAseq/DEGs_FC2_005_BM50_DNM2.xlsx")
-LMNA_rnaseq <- read.xlsx("Data_RNAseq/DEGs_FC2_005_BM50_LMNA.xlsx")
-ALL_rnaseq <- read.xlsx("Data_RNAseq/DEGs_FC2_005_BM50_All_diseases.xlsx")
+deg_files <- list.files(
+  params$deg_root_dir,
+  pattern = pattern,
+  full.names = TRUE,
+  recursive = TRUE
+)
+
+if (length(deg_files) == 0) {
+  stop("No DEG Excel files found in ", params$deg_root_dir, " with pattern: ", pattern)
+}
+
+comparison_names <- basename(deg_files) %>%
+  str_remove("^DEGs_") %>%
+  str_remove("\\\\.xlsx$") %>%
+  str_remove(paste0("_", params$run_tag, "$"))
+
+all_comp <- setNames(lapply(deg_files, openxlsx::read.xlsx), comparison_names)
+all_comp <- all_comp[vapply(all_comp, nrow, integer(1)) > 0]
+
+if (length(all_comp) < 2) {
+  stop("At least two non-empty DEG files are required for comparisons.")
+}
+
+missing_cols <- names(all_comp)[!vapply(all_comp, function(df) {
+  all(c("symbol", "log2FoldChange") %in% names(df))
+}, logical(1))]
+
+if (length(missing_cols) > 0) {
+  stop("Missing required columns (symbol, log2FoldChange) in: ", paste(missing_cols, collapse = ", "))
+}
 ```
 
+```{r directed-genes}
+all_comp_directed <- purrr::map(all_comp, \(df) {
+  df %>%
+    mutate(
+      genes_directed = if_else(
+        log2FoldChange > 0,
+        paste0(symbol, "_up"),
+        paste0(symbol, "_down")
+      )
+    )
+})
 
-```{r}
-all_comp <- list(DMD = DMD_rnaseq,DN= DN_rnaseq, GSDII = GSDII_rnaseq, DNM2 = DNM2_rnaseq, LMNA = LMNA_rnaseq, ALL = ALL_rnaseq)
-
-genes_direction <- function(x){
-  y <- purrr::map(x, \(df) dplyr::mutate(df,
-                                  genes_directed = dplyr::if_else(
-                                      log2FoldChange > 0,
-                                      paste0(symbol, "_up"),
-                                      paste0(symbol, "_down")
-                                  )))
- return(y)
-  }
-tmp <- genes_direction(all_comp) %>% purrr::map(\(df) pull(df,genes_directed))
-
+gene_sets <- purrr::map(all_comp_directed, ~unique(.x$genes_directed))
 ```
 
-# UpsetPlot
-```{r fig.height=9, fig.width=12}
-# Packages
-library(ComplexUpset)
-library(ggplot2)
+# UpSet plot
 
-# tmp[1:6] = liste de vecteurs (gènes)
-df_up <- UpSetR::fromList(tmp[1:6])
-# df_up: data.frame logique (colonnes = sets) + colonne "elements"
+```{r upset-plot, fig.height=9, fig.width=14}
+upset_input <- UpSetR::fromList(gene_sets)
 
 ComplexUpset::upset(
-  df_up,
-  intersect = names(tmp[1:6]),
-  name = "Genes",
-  min_degree = 2,     # intersections >=2 sets (mets 1 si tu veux tout)
-  width_ratio = 0.2,   # taille de la matrice vs barplot
-  stripes = c("#E78AC3","#A6D854","#FFD92F","#8DA0CB","#FC8D62","#66C2A5")
+  upset_input,
+  intersect = names(gene_sets),
+  name = "DEGs",
+  min_size = 5,
+  width_ratio = 0.25
 )
 ```
 
+# Venn diagram
 
-```{r Venn diag}
+```{r venn-diagram, fig.height=8, fig.width=8}
+if (length(gene_sets) >= 2 && length(gene_sets) <= 5) {
+  cols <- setNames(brewer.pal(max(3, length(gene_sets)), "Set2")[seq_along(gene_sets)], names(gene_sets))
+  fit <- venn(gene_sets)
 
-## =========================
-## 1) Input: your 5 sets
-## =========================
-sets <- tmp[1:5]
-stopifnot(is.list(sets), length(sets) == 5)
-stopifnot(!is.null(names(sets)))
-
-
-# Normalize set names once (fixes spaces/case issues)
-names(sets) <- trimws(names(sets))
-sets <- sets[!is.na(names(sets)) & names(sets) != ""]
-
-
-## =========================
-## 2) Combination matrix (truth source for intersections)
-## =========================
-cm <- make_comb_mat(sets)
-
-## Optional: quick summary
-# comb_size(cm)        # sizes of each intersection region
-# set_size(cm)         # sizes of each set
-
-## =========================
-## 3) Publication-style Euler/Venn-like plot with Brewer colors
-## =========================
-cols <- setNames(brewer.pal(length(sets), "Set2"), names(sets))  # or "Dark2"
-
-fit <- venn(sets)
-
-# Vector PDF is best for papers
-plot(
-  fit,
-  fills = list(fill = cols, alpha = 0.35),
-  labels = list(font = 2, cex = 1.0),
-  quantities = list(type = "counts", font = 2, cex = 0.9),
-  legend = FALSE
-)
-
-
-# Helper: map requested disease names -> actual set names (case-insensitive)
-.map_diseases <- function(diseases, sets) {
-  dn <- trimws(diseases)
-  lookup <- setNames(names(sets), tolower(names(sets)))
-  hit <- lookup[tolower(dn)]
-  if (any(is.na(hit))) {
-    stop(
-      "Unknown disease name(s): ",
-      paste(dn[is.na(hit)], collapse = ", "),
-      "\nAvailable: ",
-      paste(names(sets), collapse = ", ")
-    )
-  }
-  unname(hit)
-}
-
-# 1) Inclusive intersection: genes in ALL selected diseases (can also be in others)
-get_genes <- function(diseases, sets) {
-  diseases <- .map_diseases(diseases, sets)
-  Reduce(intersect, sets[diseases])
-}
-
-# 2) Exclusive region: genes in selected diseases AND in NONE of the other diseases
-get_genes_exclusive <- function(diseases, sets) {
-  diseases <- .map_diseases(diseases, sets)
-  others <- setdiff(names(sets), diseases)
-  x <- Reduce(intersect, sets[diseases])
-  if (length(others)) x <- setdiff(x, Reduce(union, sets[others]))
-  x
-}
-
-# Example
-genes_DMD_LMNA_incl <- get_genes(c("DMD", "LMNA","GSDII","DN","DNM2"), sets)
-genes_DMD_LMNA_only <- get_genes_exclusive(c("DMD", "LMNA","GSDII","DN","DNM2"), sets)
-
-
-```
-
-
-
----
-
-## Intersections
-
-```{r}
-comb_m <- as.matrix(cm)
-comb_names <- comb_name(cm)
-
-combo_label <- function(x) paste(x, collapse = " ∩ ")
-
-exclusive_df <- do.call(rbind, lapply(seq_along(comb_names), function(i) {
-
-  # FIX: use which() (or comb_m[, i] == 1)
-  on_sets <- rownames(comb_m)[which(comb_m[, i] == 1)]
-
-  g <- extract_comb(cm, comb_names[i])
-  if (length(g) == 0) return(NULL)
-
-  data.frame(
-    intersection = combo_label(on_sets),
-    gene = g,
-    stringsAsFactors = FALSE
+  plot(
+    fit,
+    fills = list(fill = cols, alpha = 0.35),
+    labels = list(font = 2, cex = 0.95),
+    quantities = list(type = "counts", cex = 0.85),
+    legend = FALSE
   )
-}))
-
-# keep only intersections >=2 sets (optional)
-exclusive_df <- exclusive_df[grepl("∩", exclusive_df$intersection), , drop = FALSE]
-exclusive_df <- exclusive_df[order(exclusive_df$intersection, exclusive_df$gene), ]
-
-
+} else {
+  plot.new()
+  text(0.5, 0.5, "Venn diagram available only when 2 to 5 DEG comparisons are loaded")
+}
 ```
 
+# Intersection query
 
-```{r}
-sd <- SharedData$new(exclusive_df)
-
-filter_select(
-  id = "intersection",
-  label = "Choisir une intersection du Venn",
-  sharedData = sd,
-  group = ~intersection,
-  multiple = FALSE
+```{r intersection-precompute}
+# Full intersection catalog from all combinations
+combo_tbl <- tibble(
+  comparison = names(gene_sets),
+  set = gene_sets
 )
 
-DT::datatable(
-  sd,
-  rownames = FALSE,
-  options = list(
-    pageLength = 50,
-    dom = "ftip",
-    columnDefs = list(
-      list(visible = FALSE, targets = which(names(exclusive_df) == "intersection") - 1)
+all_intersections <- map_dfr(2:length(gene_sets), function(k) {
+  cmb <- combn(names(gene_sets), k, simplify = FALSE)
+  map_dfr(cmb, function(sel) {
+    genes <- reduce(gene_sets[sel], intersect)
+    tibble(
+      selected_comparisons = paste(sel, collapse = " ∩ "),
+      n_selected = k,
+      n_genes = length(genes),
+      genes = list(sort(genes))
     )
-  ),
-  class = "compact stripe",
-  filter = "none"
-)
+  })
+})
 
-# reactable(
-#   sd,
-#   searchable = TRUE,          # barre de recherche
-#   pagination = TRUE,
-#   defaultPageSize = 50,
-#   highlight = TRUE,
-#   bordered = TRUE,
-#   compact = TRUE,
-#   columns = list(
-#     intersection = colDef(show = FALSE),  # on cache, car déjà dans le menu
-#     gene = colDef(name = "Genes")
-#   )
-# )
+all_intersections <- all_intersections %>%
+  arrange(desc(n_genes), selected_comparisons)
+
+query_output <- all_intersections %>%
+  unnest_longer(genes, values_to = "gene")
 ```
 
+```{r intersection-query-table}
+DT::datatable(
+  query_output,
+  filter = "top",
+  rownames = FALSE,
+  options = list(pageLength = 25, scrollX = TRUE)
+)
+```
+
+```{r helper-query-functions}
+# Helper query functions for ad-hoc use in this report
+get_intersection_genes <- function(selected, sets) {
+  selected <- intersect(selected, names(sets))
+  if (length(selected) < 2) {
+    return(character(0))
+  }
+  sort(reduce(sets[selected], intersect))
+}
+
+get_exclusive_intersection_genes <- function(selected, sets) {
+  selected <- intersect(selected, names(sets))
+  if (length(selected) < 2) {
+    return(character(0))
+  }
+  others <- setdiff(names(sets), selected)
+  hits <- reduce(sets[selected], intersect)
+  if (length(others) == 0) {
+    return(sort(hits))
+  }
+  sort(setdiff(hits, reduce(sets[others], union)))
+}
+
+example_selected <- names(gene_sets)[seq_len(min(3, length(gene_sets)))]
+example_genes <- get_intersection_genes(example_selected, gene_sets)
+example_genes_exclusive <- get_exclusive_intersection_genes(example_selected, gene_sets)
+
+tibble(
+  query_type = c("inclusive", "exclusive"),
+  selected = paste(example_selected, collapse = ", "),
+  genes_found = c(length(example_genes), length(example_genes_exclusive))
+) %>%
+  DT::datatable(rownames = FALSE)
+```

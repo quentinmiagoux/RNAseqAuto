@@ -5,6 +5,7 @@ coldata_xlsx: "data/RNAseq_proteomics_info.xlsx"
 merge_replicates: false
 lfc_threshold: 0.5
 lfc: 2
+padj: 0.05
 bm: 50
 lfcse: 1
 samples_to_exclude:
