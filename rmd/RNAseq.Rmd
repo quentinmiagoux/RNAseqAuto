@@ -80,7 +80,7 @@ all_comp_directed <- purrr::map(all_comp, \(df) {
 
 gene_sets <- purrr::map(all_comp_directed, ~unique(.x$genes_directed))
 
-target_diseases <- c("DN", "DMD", "LMNA", "GSDII", "EDMD")
+target_diseases <- c("DN", "DMD", "LMNA", "GSDII", "DNM2")
 disease_regex <- paste0("(^|[^A-Za-z0-9])(", paste(target_diseases, collapse = "|"), ")([^A-Za-z0-9]|$)")
 
 gene_sets_disease <- gene_sets[str_detect(names(gene_sets), regex(disease_regex, ignore_case = TRUE))]
@@ -111,8 +111,7 @@ ComplexUpset::upset(
 
 # Venn diagram
 
-```{r venn-diagram, fig.height=8, fig.width=8}
-if (length(gene_sets_disease) >= 2 && length(gene_sets_disease) <= 5) {
+```{r venn-diagram, fig.height=9, fig.width=9}
   cols <- setNames(brewer.pal(max(3, length(gene_sets_disease)), "Set2")[seq_along(gene_sets_disease)], names(gene_sets_disease))
   fit <- venn(gene_sets_disease)
 
@@ -180,39 +179,4 @@ DT::datatable(
   class = "compact stripe",
   filter = "none"
 )
-```
-
-```{r helper-query-functions}
-# Helper query functions for ad-hoc use in this report
-get_intersection_genes <- function(selected, sets) {
-  selected <- intersect(selected, names(sets))
-  if (length(selected) < 2) {
-    return(character(0))
-  }
-  sort(reduce(sets[selected], intersect))
-}
-
-get_exclusive_intersection_genes <- function(selected, sets) {
-  selected <- intersect(selected, names(sets))
-  if (length(selected) < 2) {
-    return(character(0))
-  }
-  others <- setdiff(names(sets), selected)
-  hits <- reduce(sets[selected], intersect)
-  if (length(others) == 0) {
-    return(sort(hits))
-  }
-  sort(setdiff(hits, reduce(sets[others], union)))
-}
-
-example_selected <- names(gene_sets_disease)[seq_len(min(3, length(gene_sets_disease)))]
-example_genes <- get_intersection_genes(example_selected, gene_sets_disease)
-example_genes_exclusive <- get_exclusive_intersection_genes(example_selected, gene_sets_disease)
-
-tibble(
-  query_type = c("inclusive", "exclusive"),
-  selected = paste(example_selected, collapse = ", "),
-  genes_found = c(length(example_genes), length(example_genes_exclusive))
-) %>%
-  DT::datatable(rownames = FALSE)
 ```
