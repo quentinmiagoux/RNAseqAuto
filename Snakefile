@@ -1,4 +1,4 @@
-configfile: "config.yaml"
+﻿configfile: "config.yaml"
 
 import csv
 from pathlib import Path
@@ -93,14 +93,22 @@ comparison_deg_outputs = [
     for comparison in active_comparisons
 ]
 
+dep_diseases = ["DMD", "DN", "GSDII", "LMNA", "DNM2"]
+dep_xlsx_outputs = [
+    f"results/{RUN_TAG}/{disease}/DEPs_{disease}_{RUN_TAG}.xlsx"
+    for disease in dep_diseases
+]
+
+
 
 rule all:
     input:
         comparison_html_outputs,
         comparison_deg_outputs,
+        dep_xlsx_outputs,
         "results/" + RUN_TAG + "/rnaseq_deg_comparison_" + RUN_TAG + ".html",
-        "results/" + RUN_TAG + "/qc_all_individuals.html"
-
+        "results/" + RUN_TAG + "/qc_all_individuals.html",
+        "results/" + RUN_TAG + "/DEP.html"
 
 rule render_rmd:
     input:
@@ -208,6 +216,40 @@ rule render_rnaseq_deg_comparison:
           params=list(
             deg_root_dir=\"{params.deg_root_dir}\",
             run_tag=\"{params.run_tag}\"
+          )
+        )" &> "{log}"
+        """
+
+
+
+rule render_dep:
+    input:
+        rmd=abs_path("rmd/DEP.Rmd"),
+        msstats_quant=abs_path("data/msstats_quant_result.xls"),
+    output:
+        html="results/" + RUN_TAG + "/DEP.html",
+        dep_xlsx=dep_xlsx_outputs,
+    log:
+        "logs/render_rmd/dep." + RUN_TAG + ".log"
+    params:
+        run_tag=RUN_TAG,
+        output_root=abs_path(f"results/{RUN_TAG}"),
+        lfc=lambda wc: config.get("lfc", 2),
+        padj=lambda wc: config.get("padj", 0.05),
+    shell:
+        r"""
+        mkdir -p "results/{params.run_tag}" "results/{params.run_tag}/.knit/dep_{params.run_tag}"
+        Rscript -e "rmarkdown::render(
+          \"{input.rmd}\",
+          output_file=\"DEP.html\",
+          output_dir=\"results/{params.run_tag}\",
+          intermediates_dir=\"results/{params.run_tag}/.knit/dep_{params.run_tag}\",
+          params=list(
+            msstats_quant=\"{input.msstats_quant}\",
+            output_root=\"{params.output_root}\",
+            run_tag=\"{params.run_tag}\",
+            lfc={params.lfc},
+            padj={params.padj}
           )
         )" &> "{log}"
         """
