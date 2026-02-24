@@ -99,6 +99,10 @@ dep_xlsx_outputs = [
     for disease in dep_diseases
 ]
 
+rna_prot_overlap_html = f"results/{RUN_TAG}/rnaseq_proteomics_overlap_{RUN_TAG}.html"
+rna_prot_overlap_xlsx = f"results/{RUN_TAG}/rnaseq_proteomics_overlap_{RUN_TAG}.xlsx"
+
+
 
 
 rule all:
@@ -108,7 +112,9 @@ rule all:
         dep_xlsx_outputs,
         "results/" + RUN_TAG + "/rnaseq_deg_comparison_" + RUN_TAG + ".html",
         "results/" + RUN_TAG + "/qc_all_individuals.html",
-        "results/" + RUN_TAG + "/DEP.html"
+        "results/" + RUN_TAG + "/DEP.html",
+        rna_prot_overlap_html,
+        rna_prot_overlap_xlsx
 
 rule render_rmd:
     input:
@@ -205,6 +211,11 @@ rule render_rnaseq_deg_comparison:
     params:
         deg_root_dir=abs_path(f"results/{RUN_TAG}"),
         run_tag=RUN_TAG,
+        lfc=lambda wc: config.get("lfc", 2),
+        padj=lambda wc: config.get("padj", 0.05),
+        lfc_threshold=lambda wc: config.get("lfc_threshold", 0.0),
+        bm=lambda wc: config.get("bm", 50),
+        lfcse=lambda wc: config.get("lfcse", 1),
     shell:
         r"""
         mkdir -p "results/{params.run_tag}" "results/{params.run_tag}/.knit/rnaseq_deg_comparison_{params.run_tag}"
@@ -215,7 +226,12 @@ rule render_rnaseq_deg_comparison:
           intermediates_dir=\"results/{params.run_tag}/.knit/rnaseq_deg_comparison_{params.run_tag}\",
           params=list(
             deg_root_dir=\"{params.deg_root_dir}\",
-            run_tag=\"{params.run_tag}\"
+            run_tag=\"{params.run_tag}\",
+            lfc={params.lfc},
+            padj={params.padj},
+            lfc_threshold={params.lfc_threshold},
+            bm={params.bm},
+            lfcse={params.lfcse}
           )
         )" &> "{log}"
         """
@@ -248,6 +264,41 @@ rule render_dep:
             msstats_quant=\"{input.msstats_quant}\",
             output_root=\"{params.output_root}\",
             run_tag=\"{params.run_tag}\",
+            lfc={params.lfc},
+            padj={params.padj}
+          )
+        )" &> "{log}"
+        """
+
+
+rule render_rnaseq_proteomics_overlap:
+    input:
+        rmd=abs_path("rmd/RNAseq_Proteomics_Comparison.Rmd"),
+        rna_deg_files=comparison_deg_outputs,
+        dep_files=dep_xlsx_outputs,
+    output:
+        html=rna_prot_overlap_html,
+        xlsx=rna_prot_overlap_xlsx,
+    log:
+        "logs/render_rmd/rnaseq_proteomics_overlap." + RUN_TAG + ".log"
+    params:
+        output_root=abs_path(f"results/{RUN_TAG}"),
+        run_tag=RUN_TAG,
+        min_count=3,
+        lfc=lambda wc: config.get("lfc", 2),
+        padj=lambda wc: config.get("padj", 0.05),
+    shell:
+        r"""
+        mkdir -p "results/{params.run_tag}" "results/{params.run_tag}/.knit/rnaseq_proteomics_overlap_{params.run_tag}"
+        Rscript -e "rmarkdown::render(
+          \"{input.rmd}\",
+          output_file=\"rnaseq_proteomics_overlap_{params.run_tag}.html\",
+          output_dir=\"results/{params.run_tag}\",
+          intermediates_dir=\"results/{params.run_tag}/.knit/rnaseq_proteomics_overlap_{params.run_tag}\",
+          params=list(
+            output_root=\"{params.output_root}\",
+            run_tag=\"{params.run_tag}\",
+            min_count={params.min_count},
             lfc={params.lfc},
             padj={params.padj}
           )

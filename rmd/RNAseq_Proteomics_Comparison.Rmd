@@ -1,0 +1,224 @@
+---
+title: "RNAseq vs Proteomics overlap"
+author: "Quentin"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    df_print: paged
+params:
+  output_root: "results"
+  run_tag: ""
+  min_count: 3
+  lfc: 2
+  padj: 0.05
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+```
+
+```{r packages}
+library(tidyverse)
+library(openxlsx)
+library(DT)
+library(eulerr)
+```
+
+# Parameters used
+
+```{r analysis-parameters}
+analysis_params <- tibble::tibble(
+  parameter = c("run_tag", "min_count", "fold_change (lfc)", "padj", "output_root"),
+  value = c(
+    params$run_tag,
+    as.character(params$min_count),
+    as.character(params$lfc),
+    as.character(params$padj),
+    params$output_root
+  )
+)
+
+DT::datatable(
+  analysis_params,
+  rownames = FALSE,
+  options = list(dom = "t", paging = FALSE),
+  class = "compact stripe"
+)
+```
+
+```{r build-overlap}
+target_diseases <- c("DMD", "DN", "GSDII", "LMNA", "DNM2")
+
+normalize_gene <- function(x) {
+  x %>%
+    str_trim() %>%
+    str_replace_all("\\s+", "") %>%
+    str_to_upper()
+}
+
+extract_disease_from_name <- function(name) {
+  nm <- str_to_upper(name)
+  dplyr::case_when(
+    str_detect(nm, "(^|[^A-Z0-9])DMD([^A-Z0-9]|$)") ~ "DMD",
+    str_detect(nm, "(^|[^A-Z0-9])GSDII([^A-Z0-9]|$)") ~ "GSDII",
+    str_detect(nm, "(^|[^A-Z0-9])LMNA([^A-Z0-9]|$)") ~ "LMNA",
+    str_detect(nm, "(^|[^A-Z0-9])(DNM2|DNMII)([^A-Z0-9]|$)") ~ "DNM2",
+    str_detect(nm, "(^|[^A-Z0-9])DN([^A-Z0-9]|$)") ~ "DN",
+    TRUE ~ NA_character_
+  )
+}
+
+rna_pattern <- if (nzchar(params$run_tag)) {
+  paste0("^DEGs_.*_", params$run_tag, "\\.xlsx$")
+} else {
+  "^DEGs_.*\\.xlsx$"
+}
+
+rna_candidates <- list.files(
+  params$output_root,
+  pattern = "\\.xlsx$",
+  recursive = TRUE,
+  full.names = TRUE
+)
+rna_files <- rna_candidates[str_detect(basename(rna_candidates), rna_pattern)]
+
+if (length(rna_files) == 0) {
+  stop("No RNAseq DEG Excel files found in: ", params$output_root)
+}
+
+rna_long <- purrr::map_dfr(rna_files, function(path) {
+  nm <- basename(path) %>%
+    str_remove("^DEGs_") %>%
+    str_remove("\\.xlsx$") %>%
+    str_remove(paste0("_", params$run_tag, "$"))
+
+  disease <- extract_disease_from_name(nm)
+  if (is.na(disease)) return(tibble())
+
+  df <- openxlsx::read.xlsx(path)
+  if (!"symbol" %in% names(df)) return(tibble())
+
+  df %>%
+    transmute(gene = normalize_gene(symbol), disease = disease) %>%
+    filter(!is.na(gene), gene != "") %>%
+    distinct()
+})
+
+if (nrow(rna_long) == 0) {
+  stop("No usable RNAseq DEG rows found with a 'symbol' column.")
+}
+
+rna_presence <- rna_long %>%
+  filter(disease %in% target_diseases) %>%
+  distinct(gene, disease) %>%
+  mutate(value = TRUE) %>%
+  pivot_wider(names_from = disease, values_from = value, values_fill = FALSE) %>%
+  mutate(
+    RNA_Count = rowSums(across(all_of(target_diseases), as.integer)),
+    RNA_Diseases = apply(select(., all_of(target_diseases)), 1, function(v) {
+      paste(target_diseases[as.logical(v)], collapse = ",")
+    })
+  ) %>%
+  select(gene, RNA_Count, RNA_Diseases)
+
+prot_files <- file.path(
+  params$output_root,
+  target_diseases,
+  paste0("DEPs_", target_diseases, "_", params$run_tag, ".xlsx")
+)
+
+missing_prot <- prot_files[!file.exists(prot_files)]
+if (length(missing_prot) > 0) {
+  warning("Missing proteomics DEP files: ", paste(missing_prot, collapse = "; "))
+}
+
+prot_long <- purrr::map2_dfr(prot_files, target_diseases, function(path, disease) {
+  if (!file.exists(path)) return(tibble())
+
+  df <- openxlsx::read.xlsx(path)
+  if (!"protein" %in% names(df)) return(tibble())
+
+  df %>%
+    transmute(gene = normalize_gene(protein), disease = disease) %>%
+    filter(!is.na(gene), gene != "") %>%
+    distinct()
+})
+
+if (nrow(prot_long) == 0) {
+  stop("No usable proteomics DEP rows found with a 'protein' column.")
+}
+
+prot_presence <- prot_long %>%
+  distinct(gene, disease) %>%
+  mutate(value = TRUE) %>%
+  pivot_wider(names_from = disease, values_from = value, values_fill = FALSE) %>%
+  mutate(
+    Prot_Count = rowSums(across(all_of(target_diseases), as.integer)),
+    Prot_Diseases = apply(select(., all_of(target_diseases)), 1, function(v) {
+      paste(target_diseases[as.logical(v)], collapse = ",")
+    })
+  ) %>%
+  select(gene, Prot_Count, Prot_Diseases)
+
+overlap_summary <- full_join(rna_presence, prot_presence, by = "gene") %>%
+  mutate(
+    RNA_Count = replace_na(RNA_Count, 0L),
+    Prot_Count = replace_na(Prot_Count, 0L),
+    RNA_Diseases = replace_na(RNA_Diseases, ""),
+    Prot_Diseases = replace_na(Prot_Diseases, ""),
+    Both_min_count = RNA_Count >= params$min_count & Prot_Count >= params$min_count
+  ) %>%
+  arrange(desc(Both_min_count), desc(RNA_Count + Prot_Count), gene)
+
+overlap_top <- overlap_summary %>% filter(Both_min_count)
+
+output_xlsx <- file.path(params$output_root, paste0("rnaseq_proteomics_overlap_", params$run_tag, ".xlsx"))
+openxlsx::write.xlsx(
+  list(
+    overlap_all = overlap_summary,
+    overlap_min_count = overlap_top
+  ),
+  output_xlsx,
+  overwrite = TRUE
+)
+```
+
+# Venn of genes shared across diseases
+
+```{r venn, fig.width=7, fig.height=7}
+venn_sets <- list(
+  RNAseq = overlap_summary$gene[overlap_summary$RNA_Count >= params$min_count],
+  Proteomics = overlap_summary$gene[overlap_summary$Prot_Count >= params$min_count]
+)
+
+fit <- venn(venn_sets)
+plot(
+  fit,
+  fills = list(fill = c("#66C2A5", "#FC8D62"), alpha = 0.4),
+  labels = list(font = 2, cex = 1.1),
+  quantities = list(type = "counts", cex = 1.0),
+  legend = FALSE
+)
+```
+
+# Overlap table (min count in both omics)
+
+```{r overlap-top-table}
+DT::datatable(
+  overlap_top,
+  rownames = FALSE,
+  options = list(pageLength = 25, scrollX = TRUE),
+  class = "compact stripe"
+)
+```
+
+# Full table
+
+```{r overlap-full-table}
+DT::datatable(
+  overlap_summary,
+  rownames = FALSE,
+  options = list(pageLength = 25, scrollX = TRUE),
+  class = "compact stripe"
+)
+```

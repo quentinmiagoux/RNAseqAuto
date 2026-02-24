@@ -64,6 +64,30 @@ library("DESeq2")
 set.seed(123)
 ```
 
+# Parameters used
+
+```{r analysis-parameters}
+analysis_params <- tibble::tibble(
+  parameter = c("run_tag", "fold_change (lfc)", "padj", "expr_xlsx", "coldata_xlsx", "output_root"),
+  value = c(
+    params$run_tag,
+    as.character(params$lfc),
+    as.character(params$padj),
+    params$expr_xlsx,
+    params$coldata_xlsx,
+    params$output_root
+  )
+)
+
+DT::datatable(
+  analysis_params,
+  rownames = FALSE,
+  options = list(dom = "t", paging = FALSE),
+  class = "compact stripe"
+)
+```
+
+
 ```{r functions}
 datatable_fun <- function(x) {
   x %>%

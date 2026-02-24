@@ -8,6 +8,11 @@ output:
 params:
   deg_root_dir: "results"
   run_tag: ""
+  lfc: 2
+  padj: 0.05
+  lfc_threshold: 0
+  bm: 50
+  lfcse: 1
 ---
 
 ```{r setup, include=FALSE}
@@ -26,6 +31,30 @@ library(ComplexHeatmap)
 library(eulerr)
 library(RColorBrewer)
 ```
+
+# Parameters used
+
+```{r analysis-parameters}
+analysis_params <- tibble::tibble(
+  parameter = c("run_tag", "fold_change (lfc)", "padj", "lfc_threshold", "baseMean (bm)", "lfcSE"),
+  value = c(
+    params$run_tag,
+    as.character(params$lfc),
+    as.character(params$padj),
+    as.character(params$lfc_threshold),
+    as.character(params$bm),
+    as.character(params$lfcse)
+  )
+)
+
+DT::datatable(
+  analysis_params,
+  rownames = FALSE,
+  options = list(dom = "t", paging = FALSE),
+  class = "compact stripe"
+)
+```
+
 
 ```{r load-deg-files}
 pattern <- if (nzchar(params$run_tag)) {
@@ -134,7 +163,7 @@ cm <- make_comb_mat(gene_sets_disease)
 comb_m <- as.matrix(cm)
 comb_names <- comb_name(cm)
 
-combo_label <- function(x) paste(x, collapse = " ∩ ")
+combo_label <- function(x) paste(x, collapse = " Ã¢Ë†Â© ")
 
 exclusive_df <- do.call(rbind, lapply(seq_along(comb_names), function(i) {
   on_sets <- rownames(comb_m)[which(comb_m[, i] == 1)]
@@ -153,7 +182,7 @@ if (is.null(exclusive_df)) {
   exclusive_df <- data.frame(intersection = character(0), gene = character(0), stringsAsFactors = FALSE)
 }
 
-exclusive_df <- exclusive_df[grepl("∩", exclusive_df$intersection), , drop = FALSE]
+exclusive_df <- exclusive_df[grepl("Ã¢Ë†Â©", exclusive_df$intersection), , drop = FALSE]
 exclusive_df <- exclusive_df[order(exclusive_df$intersection, exclusive_df$gene), ]
 ```
 
@@ -245,7 +274,7 @@ if (length(missing_diseases) > 0) {
 }
 
 pvalue_threshold <- if (!is.null(params$padj)) params$padj else 0.05
-fc_threshold <- if (!is.null(params$lfc_threshold)) params$lfc_threshold else 2
+fc_threshold <- if (!is.null(params$lfc)) params$lfc else if (!is.null(params$lfc_threshold)) params$lfc_threshold else 2
 
 build_disease_table <- function(df, disease) {
   p_col <- if ("padj" %in% names(df)) {
