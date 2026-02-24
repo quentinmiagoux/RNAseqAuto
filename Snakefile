@@ -111,7 +111,7 @@ rule render_rmd:
         html=f"results/{RUN_TAG}" + "/{disease}/{comparison}_" + RUN_TAG + ".html",
         deg_xlsx=f"results/{RUN_TAG}" + "/{disease}/DEGs_{comparison}_" + RUN_TAG + ".xlsx",
     log:
-        "logs/render_rmd/{comparison}." + RUN_TAG + ".log"
+        "logs/render_rmd/{disease}/{comparison}." + RUN_TAG + ".log"
     params:
         group_a=lambda wc: comparisons_by_name[wc.comparison]["group_a"],
         group_b=lambda wc: comparisons_by_name[wc.comparison]["group_b"],
@@ -128,7 +128,7 @@ rule render_rmd:
         run_tag=RUN_TAG,
     shell:
         r"""
-        mkdir -p "results/{params.run_tag}/{params.disease_folder}" "results/{params.run_tag}/.knit/{wildcards.comparison}_{params.run_tag}"
+        mkdir -p "results/{params.run_tag}/{params.disease_folder}" "results/{params.run_tag}/.knit/{wildcards.comparison}_{params.run_tag}" "logs/render_rmd/{wildcards.disease}"
         Rscript -e "rmarkdown::render(
           \"{input.rmd}\",
           output_file=\"{wildcards.comparison}_{params.run_tag}.html\",
