@@ -18,6 +18,7 @@ knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
 library(tidyverse)
 library(openxlsx)
 library(DT)
+library(downloadthis)
 library(crosstalk)
 library(htmltools)
 library(ComplexUpset)
@@ -322,12 +323,13 @@ DT::datatable(
   class = "compact stripe"
 )
 
-htmltools::tags$p(
-  "You can also download the pre-generated workbook:",
-  htmltools::tags$a(
-    href = "gene_disease_logFC_summary.xlsx",
-    "gene_disease_logFC_summary.xlsx",
-    download = NA
+gene_disease_summary %>%
+  download_this(
+    output_name = "gene_disease_logFC_summary",
+    output_extension = ".xlsx",
+    button_label = "Download table as xlsx",
+    button_type = "success",
+    has_icon = TRUE,
+    icon = "fa fa-save"
   )
-)
 ```
