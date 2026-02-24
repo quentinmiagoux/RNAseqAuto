@@ -81,6 +81,7 @@ comparison_suffix = "_merged" if merge_replicates_enabled else "_unmerged"
 active_comparisons = sorted(
     name for name in comparisons_by_name.keys() if name.endswith(comparison_suffix)
 )
+active_diseases = [disease_by_comparison[comparison] for comparison in active_comparisons]
 samples_to_exclude = normalize_list(config.get("samples_to_exclude", []))
 RUN_TAG = make_run_tag(config)
 comparison_html_outputs = [
