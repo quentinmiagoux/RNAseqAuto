@@ -108,10 +108,10 @@ rule render_rmd:
         expr_xlsx=lambda wc: abs_path(config["gene_expression_xlsx"]),
         coldata_xlsx=lambda wc: abs_path(config["coldata_xlsx"]),
     output:
-        html=lambda wc: f"results/{RUN_TAG}/{disease_by_comparison[wc.comparison]}/{wc.comparison}_{RUN_TAG}.html",
-        deg_xlsx=lambda wc: f"results/{RUN_TAG}/{disease_by_comparison[wc.comparison]}/DEGs_{wc.comparison}_{RUN_TAG}.xlsx",
+        html=f"results/{RUN_TAG}" + "/{disease}/{comparison}_" + RUN_TAG + ".html",
+        deg_xlsx=f"results/{RUN_TAG}" + "/{disease}/DEGs_{comparison}_" + RUN_TAG + ".xlsx",
     log:
-        "logs/render_rmd/{comparison}." + RUN_TAG + ".log"
+        "logs/render_rmd/{disease}/{comparison}." + RUN_TAG + ".log"
     params:
         group_a=lambda wc: comparisons_by_name[wc.comparison]["group_a"],
         group_b=lambda wc: comparisons_by_name[wc.comparison]["group_b"],
@@ -124,11 +124,11 @@ rule render_rmd:
         lfcse=lambda wc: config.get("lfcse", 1),
         samples_to_exclude=lambda wc: r_str_vector(samples_to_exclude),
         output_root=abs_path(f"results/{RUN_TAG}"),
-        disease_folder=lambda wc: disease_by_comparison[wc.comparison],
+        disease_folder=lambda wc: wc.disease,
         run_tag=RUN_TAG,
     shell:
         r"""
-        mkdir -p "results/{params.run_tag}/{params.disease_folder}" "results/{params.run_tag}/.knit/{wildcards.comparison}_{params.run_tag}"
+        mkdir -p "results/{params.run_tag}/{params.disease_folder}" "results/{params.run_tag}/.knit/{wildcards.comparison}_{params.run_tag}" "logs/render_rmd/{wildcards.disease}"
         Rscript -e "rmarkdown::render(
           \"{input.rmd}\",
           output_file=\"{wildcards.comparison}_{params.run_tag}.html\",
