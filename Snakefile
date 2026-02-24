@@ -84,18 +84,14 @@ active_comparisons = sorted(
 active_diseases = [disease_by_comparison[comparison] for comparison in active_comparisons]
 samples_to_exclude = normalize_list(config.get("samples_to_exclude", []))
 RUN_TAG = make_run_tag(config)
-comparison_html_outputs = expand(
-    "results/" + RUN_TAG + "/{disease}/{comparison}_" + RUN_TAG + ".html",
-    zip,
-    comparison=active_comparisons,
-    disease=active_diseases,
-)
-comparison_deg_outputs = expand(
-    "results/" + RUN_TAG + "/{disease}/DEGs_{comparison}_" + RUN_TAG + ".xlsx",
-    zip,
-    comparison=active_comparisons,
-    disease=active_diseases,
-)
+comparison_html_outputs = [
+    f"results/{RUN_TAG}/{disease_by_comparison[comparison]}/{comparison}_{RUN_TAG}.html"
+    for comparison in active_comparisons
+]
+comparison_deg_outputs = [
+    f"results/{RUN_TAG}/{disease_by_comparison[comparison]}/DEGs_{comparison}_{RUN_TAG}.xlsx"
+    for comparison in active_comparisons
+]
 
 
 rule all:
@@ -112,8 +108,8 @@ rule render_rmd:
         expr_xlsx=lambda wc: abs_path(config["gene_expression_xlsx"]),
         coldata_xlsx=lambda wc: abs_path(config["coldata_xlsx"]),
     output:
-        html="results/" + RUN_TAG + "/{disease}/{comparison}_" + RUN_TAG + ".html",
-        deg_xlsx="results/" + RUN_TAG + "/{disease}/DEGs_{comparison}_" + RUN_TAG + ".xlsx",
+        html=lambda wc: f"results/{RUN_TAG}/{disease_by_comparison[wc.comparison]}/{wc.comparison}_{RUN_TAG}.html",
+        deg_xlsx=lambda wc: f"results/{RUN_TAG}/{disease_by_comparison[wc.comparison]}/DEGs_{wc.comparison}_{RUN_TAG}.xlsx",
     log:
         "logs/render_rmd/{comparison}." + RUN_TAG + ".log"
     params:
@@ -132,7 +128,6 @@ rule render_rmd:
         run_tag=RUN_TAG,
     shell:
         r"""
-        [ "{wildcards.disease}" = "{params.disease_folder}" ]
         mkdir -p "results/{params.run_tag}/{params.disease_folder}" "results/{params.run_tag}/.knit/{wildcards.comparison}_{params.run_tag}"
         Rscript -e "rmarkdown::render(
           \"{input.rmd}\",
