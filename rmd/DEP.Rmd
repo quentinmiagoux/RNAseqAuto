@@ -1,4 +1,4 @@
-﻿---
+---
 title: "DEP"
 author: "Quentin"
 date: "`r Sys.Date()`"
@@ -7,10 +7,9 @@ params:
   msstats_quant: "data/msstats_quant_result.xls"
   output_root: "results"
   run_tag: ""
-  lfc: 
-  padj: 
+  lfc: 2
+  padj: 0.05
 ---
-
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(
   echo = FALSE,
