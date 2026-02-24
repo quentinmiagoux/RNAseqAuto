@@ -51,6 +51,11 @@ def make_run_tag(cfg):
     )
 
 
+def disease_folder_name(name):
+    cleaned = (name or "unknown").strip()
+    return "_".join(cleaned.split())
+
+
 COMPARISON_FIELDS = {"comparison", "group_a", "group_b", "rmd"}
 
 
@@ -68,27 +73,37 @@ def load_comparisons(path):
 
 comparisons = load_comparisons(config["comparisons_file"])
 comparisons_by_name = {row["comparison"]: row for row in comparisons}
+disease_by_comparison = {
+    row["comparison"]: disease_folder_name(row.get("group_a", "")) for row in comparisons
+}
 merge_replicates_enabled = bool(config.get("merge_replicates", False))
 comparison_suffix = "_merged" if merge_replicates_enabled else "_unmerged"
 active_comparisons = sorted(
     name for name in comparisons_by_name.keys() if name.endswith(comparison_suffix)
 )
+active_diseases = [disease_by_comparison[comparison] for comparison in active_comparisons]
 samples_to_exclude = normalize_list(config.get("samples_to_exclude", []))
 RUN_TAG = make_run_tag(config)
+comparison_html_outputs = expand(
+    "results/" + RUN_TAG + "/{disease}/{comparison}_" + RUN_TAG + ".html",
+    zip,
+    comparison=active_comparisons,
+    disease=active_diseases,
+)
+comparison_deg_outputs = expand(
+    "results/" + RUN_TAG + "/{disease}/DEGs_{comparison}_" + RUN_TAG + ".xlsx",
+    zip,
+    comparison=active_comparisons,
+    disease=active_diseases,
+)
 
 
 rule all:
     input:
-        expand(
-            "results/{comparison}/" + RUN_TAG + "/{comparison}_" + RUN_TAG + ".html",
-            comparison=active_comparisons,
-        ),
-        expand(
-            "results/{comparison}/" + RUN_TAG + "/DEGs_{comparison}_" + RUN_TAG + ".xlsx",
-            comparison=active_comparisons,
-        ),
-        "results/rnaseq_deg_comparison_" + RUN_TAG + ".html",
-        "results/qc_all_individuals.html"
+        comparison_html_outputs,
+        comparison_deg_outputs,
+        "results/" + RUN_TAG + "/rnaseq_deg_comparison_" + RUN_TAG + ".html",
+        "results/" + RUN_TAG + "/qc_all_individuals.html"
 
 
 rule render_rmd:
@@ -97,8 +112,8 @@ rule render_rmd:
         expr_xlsx=lambda wc: abs_path(config["gene_expression_xlsx"]),
         coldata_xlsx=lambda wc: abs_path(config["coldata_xlsx"]),
     output:
-        html="results/{comparison}/" + RUN_TAG + "/{comparison}_" + RUN_TAG + ".html",
-        deg_xlsx="results/{comparison}/" + RUN_TAG + "/DEGs_{comparison}_" + RUN_TAG + ".xlsx",
+        html="results/" + RUN_TAG + "/{disease}/{comparison}_" + RUN_TAG + ".html",
+        deg_xlsx="results/" + RUN_TAG + "/{disease}/DEGs_{comparison}_" + RUN_TAG + ".xlsx",
     log:
         "logs/render_rmd/{comparison}." + RUN_TAG + ".log"
     params:
@@ -112,22 +127,25 @@ rule render_rmd:
         bm=lambda wc: config.get("bm", 50),
         lfcse=lambda wc: config.get("lfcse", 1),
         samples_to_exclude=lambda wc: r_str_vector(samples_to_exclude),
-        output_root=abs_path("results"),
+        output_root=abs_path(f"results/{RUN_TAG}"),
+        disease_folder=lambda wc: disease_by_comparison[wc.comparison],
         run_tag=RUN_TAG,
     shell:
         r"""
-        mkdir -p "results/{wildcards.comparison}/{params.run_tag}" "results/.knit/{wildcards.comparison}_{params.run_tag}"
+        [ "{wildcards.disease}" = "{params.disease_folder}" ]
+        mkdir -p "results/{params.run_tag}/{params.disease_folder}" "results/{params.run_tag}/.knit/{wildcards.comparison}_{params.run_tag}"
         Rscript -e "rmarkdown::render(
           \"{input.rmd}\",
           output_file=\"{wildcards.comparison}_{params.run_tag}.html\",
-          output_dir=\"results/{wildcards.comparison}/{params.run_tag}\",
-          intermediates_dir=\"results/.knit/{wildcards.comparison}_{params.run_tag}\",
+          output_dir=\"results/{params.run_tag}/{params.disease_folder}\",
+          intermediates_dir=\"results/{params.run_tag}/.knit/{wildcards.comparison}_{params.run_tag}\",
           params=list(
             group_a=\"{params.group_a}\",
             group_b=\"{params.group_b}\",
             comparison=\"{wildcards.comparison}\",
             run_tag=\"{params.run_tag}\",
             output_root=\"{params.output_root}\",
+            disease_folder=\"{params.disease_folder}\",
             design_formula=\"{params.design_formula}\",
             merge_replicates={params.merge_replicates},
             lfc_threshold={params.lfc_threshold},
@@ -149,7 +167,7 @@ rule render_qc_all_individuals:
         expr_xlsx=abs_path(config["gene_expression_xlsx"]),
         coldata_xlsx=abs_path(config["coldata_xlsx"]),
     output:
-        "results/qc_all_individuals.html"
+        "results/" + RUN_TAG + "/qc_all_individuals.html"
     log:
         "logs/render_rmd/qc_all_individuals.log"
     params:
@@ -157,12 +175,12 @@ rule render_qc_all_individuals:
         samples_to_exclude=lambda wc: r_str_vector(samples_to_exclude),
     shell:
         r"""
-        mkdir -p results results/.knit/qc_all_individuals
+        mkdir -p "results/{RUN_TAG}" "results/{RUN_TAG}/.knit/qc_all_individuals"
         Rscript -e "rmarkdown::render(
           \"{input.rmd}\",
           output_file=\"qc_all_individuals.html\",
-          output_dir=\"results\",
-          intermediates_dir=\"results/.knit/qc_all_individuals\",
+          output_dir=\"results/{RUN_TAG}\",
+          intermediates_dir=\"results/{RUN_TAG}/.knit/qc_all_individuals\",
           params=list(
             expr_xlsx=\"{input.expr_xlsx}\",
             coldata_xlsx=\"{input.coldata_xlsx}\",
@@ -176,25 +194,22 @@ rule render_qc_all_individuals:
 rule render_rnaseq_deg_comparison:
     input:
         rmd=abs_path("rmd/RNAseq.Rmd"),
-        deg_files=expand(
-            "results/{comparison}/" + RUN_TAG + "/DEGs_{comparison}_" + RUN_TAG + ".xlsx",
-            comparison=active_comparisons,
-        ),
+        deg_files=comparison_deg_outputs,
     output:
-        "results/rnaseq_deg_comparison_" + RUN_TAG + ".html"
+        "results/" + RUN_TAG + "/rnaseq_deg_comparison_" + RUN_TAG + ".html"
     log:
         "logs/render_rmd/rnaseq_deg_comparison." + RUN_TAG + ".log"
     params:
-        deg_root_dir=abs_path("results"),
+        deg_root_dir=abs_path(f"results/{RUN_TAG}"),
         run_tag=RUN_TAG,
     shell:
         r"""
-        mkdir -p results results/.knit/rnaseq_deg_comparison_{params.run_tag}
+        mkdir -p "results/{params.run_tag}" "results/{params.run_tag}/.knit/rnaseq_deg_comparison_{params.run_tag}"
         Rscript -e "rmarkdown::render(
           \"{input.rmd}\",
           output_file=\"rnaseq_deg_comparison_{params.run_tag}.html\",
-          output_dir=\"results\",
-          intermediates_dir=\"results/.knit/rnaseq_deg_comparison_{params.run_tag}\",
+          output_dir=\"results/{params.run_tag}\",
+          intermediates_dir=\"results/{params.run_tag}/.knit/rnaseq_deg_comparison_{params.run_tag}\",
           params=list(
             deg_root_dir=\"{params.deg_root_dir}\",
             run_tag=\"{params.run_tag}\"

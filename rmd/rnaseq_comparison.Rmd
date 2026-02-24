@@ -29,6 +29,7 @@ params:
   design_formula: ""
   samples_to_exclude:
   output_root: "results"
+  disease_folder: ""
   run_tag: ""
 editor_options:
   chunk_output_type: console
@@ -513,7 +514,7 @@ if (is.null(run_tag) || !nzchar(run_tag)) {
   )
 }
 
-comparison_output_dir <- file.path(params$output_root, params$comparison, run_tag)
+comparison_output_dir <- file.path(params$output_root, params$disease_folder)
 dir.create(comparison_output_dir, recursive = TRUE, showWarnings = FALSE)
 
 deg_output_file <- file.path(
