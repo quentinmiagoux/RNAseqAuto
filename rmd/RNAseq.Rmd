@@ -258,7 +258,7 @@ build_disease_table <- function(df, disease) {
   df %>%
     transmute(
       gene = symbol,
-      !!paste0("logFC_", disease) := log2FoldChange,
+      !!paste0("logFC_", disease) := round(log2FoldChange, 3),
       !!paste0("pass_", disease) := !!sym(p_col) < pvalue_threshold &
         abs(log2FoldChange) >= log2(fc_threshold)
     ) %>%
@@ -294,7 +294,6 @@ gene_disease_summary <- gene_disease_summary %>%
   select(
     gene,
     all_of(paste0("logFC_", target_diseases)),
-    all_of(paste0("pass_", target_diseases)),
     Count
   )
 
