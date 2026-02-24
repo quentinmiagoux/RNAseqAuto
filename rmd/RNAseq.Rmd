@@ -18,6 +18,7 @@ knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
 library(tidyverse)
 library(openxlsx)
 library(DT)
+library(crosstalk)
 library(ComplexUpset)
 library(ComplexHeatmap)
 library(eulerr)
@@ -78,16 +79,30 @@ all_comp_directed <- purrr::map(all_comp, \(df) {
 })
 
 gene_sets <- purrr::map(all_comp_directed, ~unique(.x$genes_directed))
+
+target_diseases <- c("DN", "DMD", "LMNA", "GSDII", "EDMD")
+disease_regex <- paste0("(^|[^A-Za-z0-9])(", paste(target_diseases, collapse = "|"), ")([^A-Za-z0-9]|$)")
+
+gene_sets_disease <- gene_sets[str_detect(names(gene_sets), regex(disease_regex, ignore_case = TRUE))]
+
+if (length(gene_sets_disease) < 2) {
+  stop(
+    "At least two disease-specific comparisons are required among: ",
+    paste(target_diseases, collapse = ", "),
+    ". Found: ",
+    paste(names(gene_sets_disease), collapse = ", ")
+  )
+}
 ```
 
 # UpSet plot
 
 ```{r upset-plot, fig.height=9, fig.width=14}
-upset_input <- UpSetR::fromList(gene_sets)
+upset_input <- UpSetR::fromList(gene_sets_disease)
 
 ComplexUpset::upset(
   upset_input,
-  intersect = names(gene_sets),
+  intersect = names(gene_sets_disease),
   name = "DEGs",
   min_size = 5,
   width_ratio = 0.25
@@ -97,8 +112,9 @@ ComplexUpset::upset(
 # Venn diagram
 
 ```{r venn-diagram, fig.height=8, fig.width=8}
-  cols <- setNames(brewer.pal(max(3, length(gene_sets[1:5])), "Set2")[seq_along(gene_sets)], names(gene_sets))
-  fit <- venn(gene_sets[1:5])
+if (length(gene_sets_disease) >= 2 && length(gene_sets_disease) <= 5) {
+  cols <- setNames(brewer.pal(max(3, length(gene_sets_disease)), "Set2")[seq_along(gene_sets_disease)], names(gene_sets_disease))
+  fit <- venn(gene_sets_disease)
 
   plot(
     fit,
@@ -113,38 +129,56 @@ ComplexUpset::upset(
 # Intersection query
 
 ```{r intersection-precompute}
-# Full intersection catalog from all combinations
-combo_tbl <- tibble(
-  comparison = names(gene_sets),
-  set = gene_sets
-)
+cm <- make_comb_mat(gene_sets_disease)
+comb_m <- as.matrix(cm)
+comb_names <- comb_name(cm)
 
-all_intersections <- map_dfr(2:length(gene_sets), function(k) {
-  cmb <- combn(names(gene_sets), k, simplify = FALSE)
-  map_dfr(cmb, function(sel) {
-    genes <- reduce(gene_sets[sel], intersect)
-    tibble(
-      selected_comparisons = paste(sel, collapse = " ∩ "),
-      n_selected = k,
-      n_genes = length(genes),
-      genes = list(sort(genes))
-    )
-  })
-})
+combo_label <- function(x) paste(x, collapse = " ∩ ")
 
-all_intersections <- all_intersections %>%
-  arrange(desc(n_genes), selected_comparisons)
+exclusive_df <- do.call(rbind, lapply(seq_along(comb_names), function(i) {
+  on_sets <- rownames(comb_m)[which(comb_m[, i] == 1)]
 
-query_output <- all_intersections %>%
-  unnest_longer(genes, values_to = "gene")
+  g <- extract_comb(cm, comb_names[i])
+  if (length(g) == 0) return(NULL)
+
+  data.frame(
+    intersection = combo_label(on_sets),
+    gene = g,
+    stringsAsFactors = FALSE
+  )
+}))
+
+if (is.null(exclusive_df)) {
+  exclusive_df <- data.frame(intersection = character(0), gene = character(0), stringsAsFactors = FALSE)
+}
+
+exclusive_df <- exclusive_df[grepl("∩", exclusive_df$intersection), , drop = FALSE]
+exclusive_df <- exclusive_df[order(exclusive_df$intersection, exclusive_df$gene), ]
 ```
 
 ```{r intersection-query-table}
+sd <- SharedData$new(exclusive_df)
+
+filter_select(
+  id = "intersection",
+  label = "Choisir une intersection du Venn",
+  sharedData = sd,
+  group = ~intersection,
+  multiple = FALSE
+)
+
 DT::datatable(
-  query_output,
-  filter = "top",
+  sd,
   rownames = FALSE,
-  options = list(pageLength = 25, scrollX = TRUE)
+  options = list(
+    pageLength = 50,
+    dom = "ftip",
+    columnDefs = list(
+      list(visible = FALSE, targets = which(names(exclusive_df) == "intersection") - 1)
+    )
+  ),
+  class = "compact stripe",
+  filter = "none"
 )
 ```
 
@@ -171,9 +205,9 @@ get_exclusive_intersection_genes <- function(selected, sets) {
   sort(setdiff(hits, reduce(sets[others], union)))
 }
 
-example_selected <- names(gene_sets)[seq_len(min(3, length(gene_sets)))]
-example_genes <- get_intersection_genes(example_selected, gene_sets)
-example_genes_exclusive <- get_exclusive_intersection_genes(example_selected, gene_sets)
+example_selected <- names(gene_sets_disease)[seq_len(min(3, length(gene_sets_disease)))]
+example_genes <- get_intersection_genes(example_selected, gene_sets_disease)
+example_genes_exclusive <- get_exclusive_intersection_genes(example_selected, gene_sets_disease)
 
 tibble(
   query_type = c("inclusive", "exclusive"),
