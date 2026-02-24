@@ -112,14 +112,8 @@ ComplexUpset::upset(
 # Venn diagram
 
 ```{r venn-diagram, fig.height=8, fig.width=8}
-n_sets <- length(gene_sets_disease)
-
-if (n_sets >= 2 && n_sets <= 5) {
-  palette_size <- max(3, n_sets)
-  cols <- setNames(
-    brewer.pal(palette_size, "Set2")[seq_along(gene_sets_disease)],
-    names(gene_sets_disease)
-  )
+if (length(gene_sets_disease) >= 2 && length(gene_sets_disease) <= 5) {
+  cols <- setNames(brewer.pal(max(3, length(gene_sets_disease)), "Set2")[seq_along(gene_sets_disease)], names(gene_sets_disease))
   fit <- venn(gene_sets_disease)
 
   plot(
@@ -129,10 +123,7 @@ if (n_sets >= 2 && n_sets <= 5) {
     quantities = list(type = "counts", cex = 0.85),
     legend = FALSE
   )
-} else {
-  plot.new()
-  text(0.5, 0.5, "Venn diagram available only when 2 to 5 DEG comparisons are loaded")
-}
+
 ```
 
 # Intersection query
