@@ -1,0 +1,313 @@
+---
+title: "DEP"
+author: "Quentin"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = FALSE,
+	message = FALSE,
+	warning = FALSE
+)
+```
+
+
+```{r packages}
+
+library(tidyverse)
+library(openxlsx)
+library(DT)
+library(crosstalk)
+library(ComplexHeatmap)
+library(eulerr)
+library(RColorBrewer)
+library(reactable)
+library(limma)
+
+
+df <- read.table(file="inputs/msstats_quant_result.xls", header = T)
+
+```
+
+# DEP
+
+```{r}
+
+
+df2 <- df %>% 
+  dplyr::filter(!Condition %in% c("DMD_C11","DMD_9","DNM2_C57","EDMD2_C35","WT_Cas9","WT3")) %>%
+  group_by(PG.Genes, originalRUN, Condition) %>%
+  summarise(Intensity = median(Intensity, na.rm=TRUE), .groups="drop")
+
+mat <- df2 %>%
+  select(PG.Genes, originalRUN, Intensity) %>%
+  pivot_wider(names_from = originalRUN, values_from = Intensity) %>%
+  column_to_rownames("PG.Genes") %>%
+  as.matrix()
+
+mat_log <- log2(mat)
+
+meta <- df2 %>%
+  select(originalRUN, Condition) %>%
+  distinct()
+
+meta$disease <- case_when(
+  grepl("^WT", meta$Condition) ~ "WT",
+  grepl("^DMD", meta$Condition) ~ "DMD",
+  grepl("^DNM2", meta$Condition) ~ "DNM2",
+  grepl("^LMNA", meta$Condition) ~ "LMNA",
+  grepl("^GSDII", meta$Condition) ~ "GSDII",
+  grepl("^DN_", meta$Condition) ~ "DN",
+  TRUE ~ "Other"
+)
+
+meta <- meta[match(colnames(mat_log), meta$originalRUN), ]
+
+
+meta$group <- ifelse(meta$disease == "WT", "WT", "Disease")
+meta$group <- factor(meta$group, levels=c("WT","Disease"))
+
+design <- model.matrix(~0 + group, meta)
+colnames(design) <- c("WT","Disease")
+
+fit <- lmFit(mat_log, design)
+contrast <- makeContrasts(Disease-WT, levels=design)
+fit2 <- eBayes(contrasts.fit(fit, contrast))
+
+res_all <- topTable(fit2, number=Inf)
+
+
+meta$disease <- factor(meta$disease)
+
+design2 <- model.matrix(~0 + disease, meta)
+colnames(design2) <- levels(meta$disease)
+
+fit <- lmFit(mat_log, design2)
+
+contrasts <- makeContrasts(
+  DMD-WT,
+  DNM2-WT,
+  LMNA-WT,
+  GSDII-WT,
+  DN-WT,
+  levels=design2
+)
+
+fit2 <- eBayes(contrasts.fit(fit, contrasts))
+
+res_each <- lapply(colnames(contrasts), function(cn){
+  topTable(fit2, coef=cn, number=Inf) %>%
+    rownames_to_column("protein") %>%
+    mutate(contrast = cn)
+}) %>% bind_rows()
+
+
+sig_all <- res_all %>%
+  filter(adj.P.Val < 0.05, abs(logFC) > log2(1.5)) %>% rownames_to_column(var = "protein")
+
+sig_each <- res_each %>%
+  filter(adj.P.Val < 0.05, abs(logFC) > log2(1.5))
+
+sig_DMD <- sig_each %>% dplyr::filter(contrast == "DMD - WT")
+sig_DN <- sig_each %>% dplyr::filter(contrast == "DN - WT")
+sig_GSDII <- sig_each %>% dplyr::filter(contrast == "GSDII - WT")
+sig_LMNA <- sig_each %>% dplyr::filter(contrast == "LMNA - WT")
+sig_DNM2 <- sig_each %>% dplyr::filter(contrast == "DNM2 - WT")
+
+
+all_comp <- list(DMD = sig_DMD,DN= sig_DN, GSDII = sig_GSDII, DNM2 = sig_DNM2, LMNA = sig_LMNA, ALL = sig_all)
+
+genes_direction <- function(x){
+  y <- purrr::map(x, \(df) dplyr::mutate(df,
+                                         genes_directed = dplyr::if_else(
+                                           logFC > 0,
+                                           paste0(protein, "_up"),
+                                           paste0(protein, "_down")
+                                         )))
+  return(y)
+}
+tmp <- genes_direction(all_comp) %>% purrr::map(\(df) pull(df,genes_directed))
+
+
+```
+
+
+
+```{r upset plot}
+# Packages
+library(ComplexUpset)
+library(ComplexHeatmap)
+library(ggplot2)
+library(eulerr)
+
+# tmp[1:6] = liste de vecteurs (gènes)
+df_up <- UpSetR::fromList(tmp[1:6])
+# df_up: data.frame logique (colonnes = sets) + colonne "elements"
+
+ComplexUpset::upset(
+  df_up,
+  intersect = names(tmp[1:6]),
+  name = "Genes",
+  min_degree = 2,     # intersections >=2 sets (mets 1 si tu veux tout)
+  width_ratio = 0.2,   # taille de la matrice vs barplot
+  stripes = c("#E78AC3","#A6D854","#FFD92F","#8DA0CB","#FC8D62","#66C2A5")
+)
+
+```
+
+
+
+```{r venn, echo=FALSE}
+## =========================
+## 1) Input: your 5 sets
+## =========================
+sets <- tmp[1:5]
+stopifnot(is.list(sets), length(sets) == 5)
+stopifnot(!is.null(names(sets)))
+
+
+# Normalize set names once (fixes spaces/case issues)
+names(sets) <- trimws(names(sets))
+sets <- sets[!is.na(names(sets)) & names(sets) != ""]
+
+
+## =========================
+## 2) Combination matrix (truth source for intersections)
+## =========================
+cm <- make_comb_mat(sets)
+
+## Optional: quick summary
+# comb_size(cm)        # sizes of each intersection region
+# set_size(cm)         # sizes of each set
+
+## =========================
+## 3) Publication-style Euler/Venn-like plot with Brewer colors
+## =========================
+cols <- setNames(brewer.pal(length(sets), "Set2"), names(sets))  # or "Dark2"
+
+fit <- venn(sets)
+
+# Vector PDF is best for papers
+plot(
+  fit,
+  fills = list(fill = cols, alpha = 0.35),
+  labels = list(font = 2, cex = 1.0),
+  quantities = list(type = "counts", font = 2, cex = 0.9),
+  legend = FALSE
+)
+
+
+
+```
+
+```{r matching}
+
+# Helper: map requested disease names -> actual set names (case-insensitive)
+.map_diseases <- function(diseases, sets) {
+  dn <- trimws(diseases)
+  lookup <- setNames(names(sets), tolower(names(sets)))
+  hit <- lookup[tolower(dn)]
+  if (any(is.na(hit))) {
+    stop(
+      "Unknown disease name(s): ",
+      paste(dn[is.na(hit)], collapse = ", "),
+      "\nAvailable: ",
+      paste(names(sets), collapse = ", ")
+    )
+  }
+  unname(hit)
+}
+
+# 1) Inclusive intersection: genes in ALL selected diseases (can also be in others)
+get_genes <- function(diseases, sets) {
+  diseases <- .map_diseases(diseases, sets)
+  Reduce(intersect, sets[diseases])
+}
+
+# 2) Exclusive region: genes in selected diseases AND in NONE of the other diseases
+get_genes_exclusive <- function(diseases, sets) {
+  diseases <- .map_diseases(diseases, sets)
+  others <- setdiff(names(sets), diseases)
+  x <- Reduce(intersect, sets[diseases])
+  if (length(others)) x <- setdiff(x, Reduce(union, sets[others]))
+  x
+}
+
+# Example
+genes_DMD_LMNA_incl <- get_genes(c("DMD", "LMNA","GSDII","DN","DNM2"), sets)
+genes_DMD_LMNA_only <- get_genes_exclusive(c("DMD", "LMNA","GSDII","DN","DNM2"), sets)
+
+
+
+comb_m <- as.matrix(cm)
+comb_names <- comb_name(cm)
+
+combo_label <- function(x) paste(x, collapse = " ∩ ")
+
+exclusive_df <- do.call(rbind, lapply(seq_along(comb_names), function(i) {
+  
+  # FIX: use which() (or comb_m[, i] == 1)
+  on_sets <- rownames(comb_m)[which(comb_m[, i] == 1)]
+  
+  g <- extract_comb(cm, comb_names[i])
+  if (length(g) == 0) return(NULL)
+  
+  data.frame(
+    intersection = combo_label(on_sets),
+    gene = g,
+    stringsAsFactors = FALSE
+  )
+}))
+
+# keep only intersections >=2 sets (optional)
+exclusive_df <- exclusive_df[grepl("∩", exclusive_df$intersection), , drop = FALSE]
+exclusive_df <- exclusive_df[order(exclusive_df$intersection, exclusive_df$gene), ]
+
+
+sd <- SharedData$new(exclusive_df)
+
+library(crosstalk)
+
+filter_select(
+  id = "intersection",
+  label = "Choisir une intersection du Venn",
+  sharedData = sd,
+  group = ~intersection,
+  multiple = FALSE
+)
+
+DT::datatable(
+  sd,
+  rownames = FALSE,
+  options = list(
+    pageLength = 50,
+    dom = "ftip",
+    columnDefs = list(
+      list(visible = FALSE, targets = which(names(exclusive_df) == "intersection") - 1)
+    )
+  ),
+  class = "compact stripe",
+  filter = "none"
+)
+
+# reactable(
+#   sd,
+#   searchable = TRUE,          # barre de recherche
+#   pagination = TRUE,
+#   defaultPageSize = 50,
+#   highlight = TRUE,
+#   bordered = TRUE,
+#   compact = TRUE,
+#   columns = list(
+#     intersection = colDef(show = FALSE),  # on cache, car déjà dans le menu
+#     gene = colDef(name = "Genes")
+#   )
+# )
+
+
+
+
+```
+
