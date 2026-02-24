@@ -19,6 +19,7 @@ library(tidyverse)
 library(openxlsx)
 library(DT)
 library(crosstalk)
+library(htmltools)
 library(ComplexUpset)
 library(ComplexHeatmap)
 library(eulerr)
@@ -178,5 +179,155 @@ DT::datatable(
   ),
   class = "compact stripe",
   filter = "none"
+)
+```
+
+# Disease logFC summary table
+
+```{r disease-summary-table-build}
+canonicalize_disease <- function(x) {
+  normalized <- x %>%
+    str_to_upper() %>%
+    str_replace_all("[^A-Z0-9]", "")
+
+  dplyr::case_when(
+    normalized == "DN" ~ "DN",
+    normalized == "DMD" ~ "DMD",
+    normalized == "LMNA" ~ "LMNA",
+    normalized == "GSDII" ~ "GSDII",
+    normalized %in% c("DNM2", "DNMII") ~ "DNM2",
+    TRUE ~ NA_character_
+  )
+}
+
+target_diseases <- c("DMD", "LMNA", "DN", "DNM2", "GSDII")
+
+disease_matches <- purrr::imap_dfr(all_comp, function(df, comparison_name) {
+  tokens <- str_split(comparison_name, "[^A-Za-z0-9]+", simplify = FALSE)[[1]]
+  disease <- canonicalize_disease(tokens)
+  disease <- disease[!is.na(disease)]
+
+  if (length(disease) == 0) {
+    return(tibble())
+  }
+
+  tibble(
+    comparison_name = comparison_name,
+    disease = disease[[1]]
+  )
+}) %>%
+  filter(disease %in% target_diseases) %>%
+  distinct()
+
+if (nrow(disease_matches) == 0) {
+  stop("No disease-specific DEG files found for: ", paste(target_diseases, collapse = ", "))
+}
+
+disease_map <- disease_matches %>%
+  group_by(disease) %>%
+  summarise(
+    comparison_name = first(comparison_name),
+    n_matches = n(),
+    .groups = "drop"
+  )
+
+if (any(disease_map$n_matches > 1)) {
+  warning(
+    "Multiple DEG files matched for some diseases. Using the first match for: ",
+    paste(disease_map$disease[disease_map$n_matches > 1], collapse = ", ")
+  )
+}
+
+missing_diseases <- setdiff(target_diseases, disease_map$disease)
+if (length(missing_diseases) > 0) {
+  warning("Missing disease-specific DEG files for: ", paste(missing_diseases, collapse = ", "))
+}
+
+pvalue_threshold <- if (!is.null(params$padj)) params$padj else 0.05
+fc_threshold <- if (!is.null(params$lfc_threshold)) params$lfc_threshold else 2
+
+build_disease_table <- function(df, disease) {
+  p_col <- if ("padj" %in% names(df)) {
+    "padj"
+  } else if ("pvalue" %in% names(df)) {
+    "pvalue"
+  } else {
+    stop("Missing p-value column (padj or pvalue) for disease: ", disease)
+  }
+
+  df %>%
+    transmute(
+      gene = symbol,
+      !!paste0("logFC_", disease) := round(log2FoldChange, 3),
+      !!paste0("pass_", disease) := !!sym(p_col) < pvalue_threshold &
+        abs(log2FoldChange) >= log2(fc_threshold)
+    ) %>%
+    distinct(gene, .keep_all = TRUE)
+}
+
+disease_tables <- purrr::map2(
+  disease_map$comparison_name,
+  disease_map$disease,
+  ~build_disease_table(all_comp[[.x]], .y)
+)
+
+gene_disease_summary <- reduce(disease_tables, full_join, by = "gene") %>%
+  mutate(
+    across(starts_with("pass_"), ~replace_na(.x, FALSE)),
+    Count = rowSums(across(starts_with("pass_"), as.integer))
+  ) %>%
+  arrange(desc(Count), gene)
+
+for (d in target_diseases) {
+  logfc_col <- paste0("logFC_", d)
+  pass_col <- paste0("pass_", d)
+
+  if (!logfc_col %in% names(gene_disease_summary)) {
+    gene_disease_summary[[logfc_col]] <- NA_real_
+  }
+  if (!pass_col %in% names(gene_disease_summary)) {
+    gene_disease_summary[[pass_col]] <- FALSE
+  }
+}
+
+gene_disease_summary <- gene_disease_summary %>%
+  select(
+    gene,
+    all_of(paste0("logFC_", target_diseases)),
+    Count
+  )
+
+summary_xlsx <- file.path(getwd(), "gene_disease_logFC_summary.xlsx")
+openxlsx::write.xlsx(gene_disease_summary, summary_xlsx, overwrite = TRUE)
+```
+
+```{r disease-summary-table-display}
+DT::datatable(
+  gene_disease_summary,
+  rownames = FALSE,
+  extensions = "Buttons",
+  options = list(
+    pageLength = 25,
+    scrollX = TRUE,
+    dom = "Bfrtip",
+    buttons = list(
+      list(
+        extend = "excelHtml5",
+        text = "Download full table (Excel)",
+        filename = "gene_disease_logFC_summary",
+        exportOptions = list(modifier = list(page = "all"))
+      )
+    )
+  ),
+  class = "compact stripe"
+)
+
+htmltools::tags$p(
+  "You can also download the pre-generated workbook:",
+  htmltools::tags$a(
+    href = "gene_disease_logFC_summary.xlsx",
+    "gene_disease_logFC_summary.xlsx",
+    download = NA
+  )
 )
 ```
